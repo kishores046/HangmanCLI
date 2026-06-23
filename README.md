@@ -37,6 +37,46 @@ A multiplayer terminal-based Hangman game built in Java using raw TCP sockets, t
 
 The server uses three dedicated thread pools with clear ownership to avoid thread-pool deadlocks:
 
+```mermaid
+flowchart TD
+    Client(["Client · TCP :8080"])
+
+    subgraph CHP["CLIENT_HANDLER_POOL · 10 threads"]
+        CH["ClientHandler\nreads mode · routes client"]
+    end
+
+    subgraph MMT["MATCHMAKER_THREAD · daemon"]
+        MM["MatchMakingService\nBlockingQueue · pairs players"]
+    end
+
+    subgraph GSP["GAME_SESSION_POOL · 20 threads"]
+        SMS["SingleModeSession\ncalls engine directly"]
+        GS["GameSession\nsupplyAsync ×2 → join()"]
+    end
+
+    subgraph HEP["HANGMAN_ENGINE_POOL · cached"]
+        HGE1["HangmanGameEngine P1\nauth · game loop · score"]
+        HGE2["HangmanGameEngine P2\nauth · game loop · score"]
+    end
+
+    AUTH["AuthenticationService\nregister / login"]
+    PSDAO["PlayerStatsDAO\nauth · stats · leaderboard"]
+    WSDAO["WordsStatsDAO\nrandom word by category"]
+    DB[("MySQL\nplayer_stats · words")]
+
+    Client      --> CH
+    CH          -- "choice=1 · submit"   --> SMS
+    CH          -- "choice=2 · enqueue"  --> MM
+    MM          -- "matched pair"        --> GS
+    SMS         -- "direct call"         --> HGE1
+    GS          -- "supplyAsync"         --> HGE1
+    GS          -- "supplyAsync"         --> HGE2
+    HGE1 & HGE2 --> AUTH --> PSDAO
+    HGE1 & HGE2 --> PSDAO
+    HGE1 & HGE2 --> WSDAO
+    PSDAO & WSDAO --> DB
+```
+
 ```
 CLIENT_HANDLER_POOL (10 threads)
   └── ClientHandler          reads mode choice, routes to session or matchmaker
