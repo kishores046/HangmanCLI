@@ -2,5 +2,5 @@
 .idea
 bin
 out
-resources
+src/resources
 HangManGame.iml

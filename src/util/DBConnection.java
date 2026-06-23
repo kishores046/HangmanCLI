@@ -32,11 +32,14 @@ public class DBConnection {
 
     private static void loadProperties() {
 
-        try (InputStream is = DBConnection.class.getResourceAsStream("/dbconfig.properties")) {
+       String profile =System.getProperty("profile","win");
+       String file="/db-"+profile+"-config.properties";
+
+        try (InputStream is = DBConnection.class.getResourceAsStream(file)) {
 
             if (is == null) {
                 throw new ExceptionInInitializerError(
-                        "dbconfig.properties not found on the classpath.\n" +
+                        "db-win-config.properties not found on the classpath.\n" +
                                 "Fix: move the file from resources/ into src/ (project root of the source tree),\n" +
                                 "or right-click resources/ in IntelliJ → Mark Directory as → Resources Root."
                 );
