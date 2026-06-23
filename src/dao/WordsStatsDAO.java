@@ -13,7 +13,7 @@ public class WordsStatsDAO {
         String chosenWord=null;
         try (Connection conn=DBConnection.getConnection();
              PreparedStatement psmt=conn.prepareStatement(sql)) {
-            String category=getgategoryFromChoice(choice);
+            String category=getGategoryFromChoice(choice);
              psmt.setString(1,category);
              try (ResultSet rs=psmt.executeQuery();) {
                 if(rs.next()){
@@ -25,12 +25,12 @@ public class WordsStatsDAO {
         }
         return chosenWord;
     }
-    public String getgategoryFromChoice(int choice){
-        switch(choice){
-            case 1:return "Comic-Series";
-            case 2:return "Thriller-Movies";
-            case 3:return "SciFi-Movies";
-            default: return "Comic-Series";
-        }
+    public String getGategoryFromChoice(int choice){
+        return switch(choice){
+            case 1 -> "Comic-Series";
+            case 2 -> "Thriller-Movies";
+            case 3 ->  "SciFi-Movies";
+            default -> "Comic-Series";
+        };
     }
 }
