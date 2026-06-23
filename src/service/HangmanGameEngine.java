@@ -11,9 +11,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -23,7 +21,9 @@ public class HangmanGameEngine {
     private final WordsStatsDAO wso = new WordsStatsDAO();
     private static final AuthenticationService authenticationService = AuthenticationService.getInstance();
     private static final int MAX_ATTEMPTS = 6;
+    private static final int MAX_HINTS=4;
     private static final Logger logger = Logger.getLogger("HangmanGameEngine");
+
 
     private static final String[] HANGMAN_FRAMES = {
             "   +---+\n   |   |\n       |\n       |\n       |\n       |\n  =========",
@@ -39,6 +39,8 @@ public class HangmanGameEngine {
         Socket socket = waitingPlayer.getSocket();
         int score = 0;
         String username = null;
+        int hintsUsed=0;
+        int hintPenalty=0;
 
         try {
             BufferedReader in  = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -93,6 +95,24 @@ public class HangmanGameEngine {
 
                 String guessByClient = in.readLine();
                 if (guessByClient == null || guessByClient.isBlank()) continue;
+
+                if (guessByClient.trim().equalsIgnoreCase("HINT")) {
+                    if (hintsUsed >= MAX_HINTS) {
+                        out.println("No hints remaining!");
+                    } else {
+
+                        List<Integer> unrevealed = new ArrayList<>();
+                        for (int i = 0; i < chosenWord.length(); i++)
+                            if (display[i] == '_') unrevealed.add(i);
+                        int idx = unrevealed.get(new Random().nextInt(unrevealed.size()));
+                        display[idx] = chosenWord.charAt(idx);
+                        hintsUsed++;
+                        hintPenalty+=5;
+                        out.println("Hint used! (" + hintsUsed + "/" + MAX_HINTS + ") — -5 points penalty");
+                        out.println("Word: " + new String(display));
+                    }
+                    continue;
+                }
                 char guess = Character.toLowerCase(guessByClient.charAt(0));
 
                 if (guessedLetters.contains(guess)) {
@@ -121,7 +141,7 @@ public class HangmanGameEngine {
 
 
             if (new String(display).equals(chosenWord)) {
-                score = calculateScore(wrongAttempts, start, end);
+                score = calculateScore(wrongAttempts, start, end,hintPenalty);
                 out.println("Congratulations " + username + "! You guessed the word: " + chosenWord);
                 out.println("Your score: " + score);
             } else {
@@ -150,8 +170,8 @@ public class HangmanGameEngine {
         }
     }
 
-    public int calculateScore(int wrongAttempts, long start, long end) {
+    public int calculateScore(int wrongAttempts, long start, long end,int hintPenality) {
         long elapsedSeconds = (end - start) / 1_000_000_000L;
-        return ((MAX_ATTEMPTS - wrongAttempts) * 10) + (int) Math.max(0L, 60L - elapsedSeconds);
+        return ((MAX_ATTEMPTS - wrongAttempts) * 10) + (int) Math.max(0L, 60L - elapsedSeconds)-hintPenality;
     }
 }

@@ -39,10 +39,7 @@ public class DBConnection {
 
             if (is == null) {
                 throw new ExceptionInInitializerError(
-                        "db-win-config.properties not found on the classpath.\n" +
-                                "Fix: move the file from resources/ into src/ (project root of the source tree),\n" +
-                                "or right-click resources/ in IntelliJ → Mark Directory as → Resources Root."
-                );
+                        "db-config.properties not found on the classpath.");
             }
 
             Properties props = new Properties();

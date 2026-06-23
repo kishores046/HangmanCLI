@@ -83,7 +83,7 @@ public class GameClient {
                         System.out.println(serverMessage);
 
                         if (serverMessage.contains("Enter your guess client!:(single character)")) {
-                            System.out.print("Your guess: ");
+                            System.out.print("Your guess (or type HINT): ");
                             String guess = sc.nextLine().trim();
                             out.println(guess.isEmpty() ? " " : guess);
                         }
