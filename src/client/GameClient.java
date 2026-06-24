@@ -62,7 +62,9 @@ public class GameClient {
                         out.println(sc.nextLine());
                     }
 
+                    case "CHAT_SENT"->{
 
+                    }
                     case "INPUT_GUESS" -> {
                         banner("Game started! Good luck!");
                     }
@@ -83,7 +85,7 @@ public class GameClient {
                         System.out.println(serverMessage);
 
                         if (serverMessage.contains("Enter your guess client!:(single character)")) {
-                            System.out.print("Your guess (or type HINT): ");
+                            System.out.print("Your guess (or type HINT /CHAT:Message): ");
                             String guess = sc.nextLine().trim();
                             out.println(guess.isEmpty() ? " " : guess);
                         }

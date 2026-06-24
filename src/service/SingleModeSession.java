@@ -4,9 +4,7 @@ import model.PlayerResult;
 import model.WaitingPlayer;
 import util.LeaderboardPrinter;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
+import java.io.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -26,9 +24,9 @@ public class SingleModeSession  implements Session{
 
     @Override
     public void run(){
-        PlayerResult result=hangmanGameEngine.run(waitingPlayer);
-
-        try(PrintWriter out= new PrintWriter(new OutputStreamWriter(waitingPlayer.getSocket().getOutputStream()),true)){
+        try(PrintWriter out= new PrintWriter(new OutputStreamWriter(waitingPlayer.getSocket().getOutputStream()),true);
+            BufferedReader in=new BufferedReader(new InputStreamReader(waitingPlayer.getSocket().getInputStream()))){
+            PlayerResult result=hangmanGameEngine.run(waitingPlayer,in,out,null);
             out.println("Match Over");
             out.println("Your score: "+result.getScore());
             LeaderboardPrinter.print(out);

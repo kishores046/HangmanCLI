@@ -4,7 +4,9 @@ import model.PlayerResult;
 import model.WaitingPlayer;
 import util.LeaderboardPrinter;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -32,25 +34,25 @@ public class GameSession implements Session {
 
     @Override
     public void run() {
-
-
-
-
-        try (PrintWriter out1 = new PrintWriter(waitingPlayer1.getSocket().getOutputStream(), true);
-             PrintWriter out2 = new PrintWriter(waitingPlayer2.getSocket().getOutputStream(), true)) {
+        try {
+            PrintWriter out1 = new PrintWriter(waitingPlayer1.getSocket().getOutputStream(), true);
+            PrintWriter out2 = new PrintWriter(waitingPlayer2.getSocket().getOutputStream(), true);
+            BufferedReader in1 = new BufferedReader(new InputStreamReader(waitingPlayer1.getSocket().getInputStream()));
+            BufferedReader in2 = new BufferedReader(new InputStreamReader(waitingPlayer2.getSocket().getInputStream()));
 
             out1.println("MATCH_FOUND");
             out1.println("Opponent found! Starting game...");
-
             out2.println("MATCH_FOUND");
             out2.println("Opponent found! Starting game...");
+
+            ChatService chatService=new ChatService(out1,out2);
             CompletableFuture<PlayerResult> future1 =
                     CompletableFuture.supplyAsync(
-                            () -> hangmanGameEngine.run(waitingPlayer1), hangmanEngineExecutor);
+                            () -> hangmanGameEngine.run(waitingPlayer1,in1,out1,chatService), hangmanEngineExecutor);
 
             CompletableFuture<PlayerResult> future2 =
                     CompletableFuture.supplyAsync(
-                            () -> hangmanGameEngine.run(waitingPlayer2), hangmanEngineExecutor);
+                            () -> hangmanGameEngine.run(waitingPlayer2,in2,out2,chatService), hangmanEngineExecutor);
 
             PlayerResult result1 = future1.join();
             PlayerResult result2 = future2.join();
@@ -62,13 +64,10 @@ public class GameSession implements Session {
             } else {
                 announceResult(out1, result1, "MATCH DRAWN!", out2, result2, "MATCH DRAWN!");
             }
-
-
             LeaderboardPrinter.print(out1);
             out1.println("Ended");
             LeaderboardPrinter.print(out2);
             out2.println("Ended");
-
         } catch (IOException e) {
             logger.log(Level.SEVERE, "Failed to send match result", e);
         }

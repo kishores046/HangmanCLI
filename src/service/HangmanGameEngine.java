@@ -35,7 +35,7 @@ public class HangmanGameEngine {
             "   +---+\n   |   |\n   O   |\n  /|\\  |\n  / \\  |\n       |\n  ========="
     };
 
-    public PlayerResult run(WaitingPlayer waitingPlayer) {
+    public PlayerResult run(WaitingPlayer waitingPlayer,BufferedReader in,PrintWriter out,ChatService chatService) {
         Socket socket = waitingPlayer.getSocket();
         int score = 0;
         String username = null;
@@ -43,9 +43,6 @@ public class HangmanGameEngine {
         int hintPenalty=0;
 
         try {
-            BufferedReader in  = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter   out  = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
-
 
             out.println("INPUT_USERNAME");
             username = in.readLine();
@@ -110,6 +107,15 @@ public class HangmanGameEngine {
                         hintPenalty+=5;
                         out.println("Hint used! (" + hintsUsed + "/" + MAX_HINTS + ") — -5 points penalty");
                         out.println("Word: " + new String(display));
+                    }
+                    continue;
+                }
+
+                if (chatService != null && guessByClient.toUpperCase().startsWith("CHAT:")) {
+                    String message = guessByClient.substring(5).trim();
+                    if (!message.isBlank()) {
+                        chatService.route(out, username, message);
+                        out.println("CHAT_SENT");
                     }
                     continue;
                 }
