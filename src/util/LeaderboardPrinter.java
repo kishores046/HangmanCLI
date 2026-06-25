@@ -3,16 +3,18 @@ package util;
 import dao.PlayerStatsDAO;
 import model.PlayerStats;
 
+import javax.sql.DataSource;
 import java.io.PrintWriter;
 import java.util.List;
 
 public class LeaderboardPrinter {
 
-    private static final PlayerStatsDAO dao = new PlayerStatsDAO();
-    private static final int TOP_N = 5;
 
+    private static final DataSource DATA_SOURCE=HikariConnectionManager.getDataSource();
+    private static final PlayerStatsDAO dao = new PlayerStatsDAO(DATA_SOURCE);
+    private static final int TOP_N = 5;
     public static void print(PrintWriter out) {
-        List<PlayerStats> top = dao.getTopNPlayers(5);
+        List<PlayerStats> top = dao.getTopNPlayers(TOP_N);
         out.println("╔═══════════════════════════════════════════════════╗");
         out.println("║                  TOP 5 LEADERBOARD                ║");
         out.println("╠═══╦══════════════╦═════════╦═══════╦══════════════╣");

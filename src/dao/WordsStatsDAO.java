@@ -5,13 +5,23 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import util.DBConnection;
+import util.JDBConnectionManager;
+
+import javax.sql.DataSource;
 
 public class WordsStatsDAO {
+
+
+    private final DataSource dataSource;
+
+    public WordsStatsDAO(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
     public String getWordUnderGivenCategory(int choice){
         String sql = "SELECT word FROM words WHERE category=? ORDER BY rand() LIMIT 1";
         String chosenWord=null;
-        try (Connection conn=DBConnection.getConnection();
+        try (Connection conn= dataSource.getConnection();
              PreparedStatement psmt=conn.prepareStatement(sql)) {
             String category=getGategoryFromChoice(choice);
              psmt.setString(1,category);

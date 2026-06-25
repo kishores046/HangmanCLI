@@ -1,9 +1,9 @@
 package dao;
 
 import model.PlayerStats;
-import util.DBConnection;
 import util.PasswordUtil;
 
+import javax.sql.DataSource;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -14,6 +14,12 @@ import java.util.logging.Logger;
 public class PlayerStatsDAO {
 
     private static final Logger logger = Logger.getLogger("PlayerStatsDAO");
+    private  final DataSource datasource;
+
+    public PlayerStatsDAO(DataSource datasource) {
+        this.datasource = datasource;
+    }
+
 
     // ── Authentication ────────────────────────────────────────────────────────
 
@@ -23,7 +29,7 @@ public class PlayerStatsDAO {
      */
     public boolean usernameExists(String username) {
         String sql = "SELECT 1 FROM player_stats WHERE username = ?";
-        try (Connection conn = DBConnection.getConnection();
+        try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -44,7 +50,7 @@ public class PlayerStatsDAO {
                 "INSERT INTO player_stats " +
                         "(username, password_hash, played_count, highest_score, total_score, last_played) " +
                         "VALUES (?, ?, 0, 0, 0, ?)";
-        try (Connection conn = DBConnection.getConnection();
+        try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
             stmt.setString(2, passwordHash);
@@ -65,7 +71,7 @@ public class PlayerStatsDAO {
      */
     public boolean authenticate(String username, String plaintextPassword) {
         String sql = "SELECT password_hash FROM player_stats WHERE username = ?";
-        try (Connection conn = DBConnection.getConnection();
+        try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -85,7 +91,7 @@ public class PlayerStatsDAO {
         String sql =
                 "SELECT username, played_count, highest_score, total_score, last_played " +
                         "FROM player_stats WHERE username = ?";
-        try (Connection conn = DBConnection.getConnection();
+        try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -117,7 +123,7 @@ public class PlayerStatsDAO {
                         "  total_score   = total_score + ?, " +
                         "  last_played   = ? " +
                         "WHERE username = ?";
-        try (Connection conn = DBConnection.getConnection();
+        try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, score);
             stmt.setInt(2, score);
@@ -136,7 +142,7 @@ public class PlayerStatsDAO {
                         "ORDER BY total_score DESC, highest_score DESC " +
                         "LIMIT ?";
         List<PlayerStats> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
+        try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, n);
             try (ResultSet rs = stmt.executeQuery()) {

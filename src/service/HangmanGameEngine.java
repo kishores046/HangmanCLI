@@ -4,8 +4,10 @@ import dao.PlayerStatsDAO;
 import dao.WordsStatsDAO;
 import model.PlayerResult;
 import model.WaitingPlayer;
+import util.HikariConnectionManager;
 import util.PasswordUtil;
 
+import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -17,8 +19,9 @@ import java.util.logging.Logger;
 
 public class HangmanGameEngine {
 
-    private final PlayerStatsDAO dao = new PlayerStatsDAO();
-    private final WordsStatsDAO wso = new WordsStatsDAO();
+    private static final DataSource DATA_SOURCE=HikariConnectionManager.getDataSource();
+    private final PlayerStatsDAO dao = new PlayerStatsDAO(DATA_SOURCE);
+    private final WordsStatsDAO wso = new WordsStatsDAO(DATA_SOURCE);
     private static final AuthenticationService authenticationService = AuthenticationService.getInstance();
     private static final int MAX_ATTEMPTS = 6;
     private static final int MAX_HINTS=4;

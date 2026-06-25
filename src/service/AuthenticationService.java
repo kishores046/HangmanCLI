@@ -1,13 +1,17 @@
 package service;
 
 import dao.PlayerStatsDAO;
+import util.HikariConnectionManager;
 import util.PasswordUtil;
 
+import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.PrintWriter;
 
 public class AuthenticationService {
-    private final PlayerStatsDAO dao = new PlayerStatsDAO();
+
+    private static final DataSource DATA_SOURCE=HikariConnectionManager.getDataSource();
+    private final PlayerStatsDAO dao = new PlayerStatsDAO(DATA_SOURCE);
     private static final int MAX_AUTH_ATTEMPTS = 3;
 
 
