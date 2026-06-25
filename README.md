@@ -1,6 +1,6 @@
 # HangmanCLI 🎮
 
-A multiplayer terminal-based Hangman game built in Java using raw TCP sockets, thread pools, and a MySQL database. Supports single-player and real-time 1v1 multiplayer matchmaking, persistent player accounts with authentication, time-based scoring, and a live leaderboard.
+A multiplayer terminal-based Hangman game built in Java using raw TCP sockets, thread pools, and a MySQL database. Supports single-player and real-time 1v1 multiplayer matchmaking, persistent player accounts with authentication, time-based scoring, a live leaderboard, and in-game chat between opponents.
 
 ---
 
@@ -14,6 +14,8 @@ A multiplayer terminal-based Hangman game built in Java using raw TCP sockets, t
 - [Setup and Installation](#setup-and-installation)
 - [Running the Application](#running-the-application)
 - [Gameplay](#gameplay)
+- [Multiplayer Chat](#multiplayer-chat)
+- [Protocol Reference](#protocol-reference)
 - [Scoring System](#scoring-system)
 - [Design Decisions](#design-decisions)
 - [Known Limitations](#known-limitations)
@@ -24,6 +26,7 @@ A multiplayer terminal-based Hangman game built in Java using raw TCP sockets, t
 
 - **Single Player mode** — Play Hangman solo against the clock
 - **Multiplayer mode** — Automatic 1v1 matchmaking; both players play simultaneously and scores are compared at the end
+- **In-game Chat** — Players can exchange messages with their opponent during a multiplayer game over the same TCP connection
 - **Player Authentication** — Register with a username and password; returning players log in to preserve their stats
 - **Persistent Stats** — `played_count`, `highest_score`, and `total_score` (cumulative XP) are tracked per player in MySQL
 - **Leaderboard** — Top 5 players ranked by total XP, with highest single-game score as a tiebreaker; viewable from the main menu or shown automatically after every game
@@ -59,9 +62,12 @@ flowchart TD
         HGE2["HangmanGameEngine P2\nauth · game loop · score"]
     end
 
+    CS["ChatService\nroutes CHAT: messages\nbetween opponents"]
+
     AUTH["AuthenticationService\nregister / login"]
     PSDAO["PlayerStatsDAO\nauth · stats · leaderboard"]
     WSDAO["WordsStatsDAO\nrandom word by category"]
+    HCP["HikariCP\nconnection pool · max 10"]
     DB[("MySQL\nplayer_stats · words")]
 
     Client      --> CH
@@ -71,10 +77,12 @@ flowchart TD
     SMS         -- "direct call"         --> HGE1
     GS          -- "supplyAsync"         --> HGE1
     GS          -- "supplyAsync"         --> HGE2
+    GS          -- "creates"             --> CS
+    HGE1 & HGE2 -- "CHAT: prefix"       --> CS
     HGE1 & HGE2 --> AUTH --> PSDAO
     HGE1 & HGE2 --> PSDAO
     HGE1 & HGE2 --> WSDAO
-    PSDAO & WSDAO --> DB
+    PSDAO & WSDAO --> HCP --> DB
 ```
 
 ```
@@ -105,16 +113,17 @@ MATCHMAKER_THREAD (1 daemon thread)
 ```
 src/
 ├── client/
-│   └── GameClient.java          # Terminal client — signal-driven read loop
+│   └── GameClient.java             # Terminal client — signal-driven read loop
 ├── dao/
-│   ├── PlayerStatsDAO.java      # Auth (register/login) + stats CRUD
-│   └── WordsStatsDAO.java       # Random word fetch by category
+│   ├── PlayerStatsDAO.java         # Auth (register/login) + stats CRUD
+│   └── WordsStatsDAO.java          # Random word fetch by category
 ├── model/
-│   ├── PlayerResult.java        # Carries username + score out of the engine
-│   ├── PlayerStats.java         # Full player record from DB
-│   └── WaitingPlayer.java       # Socket + username holder passed between services
+│   ├── PlayerResult.java           # Carries username + score out of the engine
+│   ├── PlayerStats.java            # Full player record from DB
+│   └── WaitingPlayer.java          # Socket + username holder passed between services
 ├── service/
 │   ├── AuthenticationService.java  # Handles new-user registration and returning-user login
+│   ├── ChatService.java            # Routes CHAT: messages between opponents (synchronized)
 │   ├── ClientHandler.java          # First contact: reads mode, routes client
 │   ├── GameServer.java             # Entry point; ServerSocket accept loop
 │   ├── GameSession.java            # Multiplayer: runs two engines in parallel
@@ -123,13 +132,16 @@ src/
 │   ├── Session.java                # Marker interface (extends Runnable)
 │   └── SingleModeSession.java      # Single player wrapper around the engine
 └── util/
-    ├── DBConnection.java           # Static factory; loads dbconfig.properties
     ├── DBConfigProperties.java     # POJO holding DB URL/user/password
+    ├── HikariConnectionManager.java# Static HikariDataSource factory (pool size 10)
+    ├── JDBConnectionManager.java   # Legacy DriverManager factory (retained for reference)
     ├── LeaderboardPrinter.java     # Formats and sends top-5 table over a PrintWriter
-    └── PasswordUtil.java           # SHA-256 hashing and verification
+    ├── PasswordUtil.java           # SHA-256 hashing and verification
+    └── PropertyLoaderUtil.java     # Loads db-<profile>-config.properties from classpath
 
 resources/
-└── dbconfig.properties            # DB credentials — gitignored, never committed
+├── db-win-config.properties        # Windows DB credentials — gitignored
+└── db-wsl-config.properties        # WSL DB credentials — gitignored
 ```
 
 ---
@@ -155,12 +167,12 @@ CREATE TABLE words (
 
 -- Sample categories: 'Comic-Series', 'Thriller-Movies', 'SciFi-Movies'
 INSERT INTO words (word, category) VALUES
-('batman',   'Comic-Series'),
-('inception','Thriller-Movies'),
-('interstellar', 'SciFi-Movies');
+('batman',        'Comic-Series'),
+('inception',     'Thriller-Movies'),
+('interstellar',  'SciFi-Movies');
 ```
 
-**`username`** carries a `UNIQUE` constraint, which is what makes `INSERT ... ON DUPLICATE KEY UPDATE` and race-condition-free registration possible.
+**`username`** carries a `UNIQUE` constraint, which is what makes race-condition-free registration possible — a duplicate insert is caught as `SQLIntegrityConstraintViolationException` rather than silently creating a second row.
 
 ---
 
@@ -171,6 +183,8 @@ INSERT INTO words (word, category) VALUES
 | Java | 17 or higher |
 | MySQL | 8.0.19 or higher |
 | MySQL Connector/J | 9.x (JAR in `lib/`) |
+| HikariCP | 5.x (JAR in `lib/`) |
+| SLF4J (HikariCP dependency) | 2.x (JAR in `lib/`) |
 
 ---
 
@@ -184,7 +198,15 @@ cd HangmanCLI
 
 ---
 
-**2. Add the MySQL driver to the project**
+**2. Add JARs to the project**
+
+The project requires three JARs in `lib/`:
+
+| JAR | Purpose |
+|---|---|
+| `mysql-connector-j-9.x.x.jar` | JDBC driver |
+| `hikaricp-5.x.x.jar` | Connection pooling |
+| `slf4j-api-2.x.x.jar` + `slf4j-simple-2.x.x.jar` | Logging backend required by HikariCP |
 
 <details>
 <summary><b>IntelliJ IDEA</b></summary>
@@ -193,13 +215,12 @@ cd HangmanCLI
 File → Project Structure (Ctrl+Alt+Shift+S)
   → Modules
   → Dependencies tab
-  → click "+" (bottom left)
-  → JARs or directories
-  → navigate to lib/mysql-connector-j-9.x.x.jar
+  → click "+" → JARs or directories
+  → select all JARs in lib/
   → OK → Apply → OK
 ```
 
-The JAR now appears under **External Libraries** in the project tree.
+All JARs appear under **External Libraries** in the project tree.
 
 </details>
 
@@ -207,16 +228,13 @@ The JAR now appears under **External Libraries** in the project tree.
 <summary><b>Eclipse</b></summary>
 
 ```
-Right-click the project in Package Explorer
-  → Build Path
-  → Configure Build Path
-  → Libraries tab
-  → Add External JARs...
-  → navigate to lib/mysql-connector-j-9.x.x.jar
+Right-click the project → Build Path → Configure Build Path
+  → Libraries tab → Add External JARs...
+  → select all JARs in lib/
   → Open → Apply and Close
 ```
 
-The JAR now appears under **Referenced Libraries** in the project tree.
+The JARs appear under **Referenced Libraries** in the project tree.
 
 </details>
 
@@ -233,80 +251,89 @@ USE hangman;
 
 **4. Configure database credentials**
 
-Create the file `resources/dbconfig.properties`.
-This file is gitignored and must **never be committed** — it contains your database password.
+The project supports two environment profiles selected at runtime via `-Dprofile=`:
+
+| Profile | File | When to use |
+|---|---|---|
+| `win` (default) | `resources/db-win-config.properties` | MySQL running as a native Windows service — no manual start needed |
+| `wsl` | `resources/db-wsl-config.properties` | MySQL started manually as a Linux service inside WSL; host, port, or socket path may differ from the Windows instance |
+
+> The two-profile setup exists because the server is developed on both Windows and WSL. On Windows, MySQL starts automatically as a service. Under WSL it must be started manually, and the connection details can differ depending on how MySQL is exposed across the WSL network boundary. If the server moves to a standalone Linux machine, the `wsl` profile covers that too without any code change.
+
+Create whichever file matches your environment. Both are gitignored and must **never be committed**.
 
 ```properties
+# db-win-config.properties  (or db-wsl-config.properties)
 DB_URL      = jdbc:mysql://localhost:3306/hangman
 DB_USER     = root
 DB_PASSWORD = your_password_here
 ```
 
-The file must be on the classpath root so `getResourceAsStream("/dbconfig.properties")` can find it.
-Each IDE handles this differently:
+The file must be on the classpath root so `getResourceAsStream("/db-<profile>-config.properties")` can find it.
 
 <details>
 <summary><b>IntelliJ IDEA — mark resources/ as a Resources Root</b></summary>
 
 ```
 Right-click the resources/ folder in the Project tree
-  → Mark Directory as
-  → Resources Root
+  → Mark Directory as → Resources Root
 ```
 
-The folder icon turns blue/orange. IntelliJ now copies everything inside it
-to the output directory alongside `.class` files at build time.
+The folder icon turns blue/orange. IntelliJ now copies everything inside it to the output directory alongside `.class` files at build time.
+
+To switch profiles, edit the GameServer run configuration:
+```
+Run → Edit Configurations → GameServer → VM options
+  → add: -Dprofile=wsl
+```
+Omit the flag to use the default `win` profile.
 
 </details>
 
 <details>
 <summary><b>Eclipse — add resources/ as a source folder</b></summary>
 
-Eclipse does not have a "Resources Root" concept. Instead, add `resources/`
-as a source folder so Eclipse copies its contents to `bin/` (the classpath root):
-
 ```
-Right-click the project
-  → Build Path
-  → Configure Build Path
-  → Source tab
-  → Add Folder...
-  → tick resources/
-  → OK → Apply and Close
+Right-click the project → Build Path → Configure Build Path
+  → Source tab → Add Folder... → tick resources/ → OK → Apply and Close
 ```
 
-`resources/` now has a small package icon. Eclipse will copy `dbconfig.properties`
-into `bin/` automatically on every build, making it visible to `getResourceAsStream`.
+`resources/` now has a small package icon and its contents are copied to `bin/` on every build.
 
 > ⚠️ After this step, right-click the project → **Refresh** so Eclipse picks up the new source folder entry.
+
+To switch profiles in Eclipse:
+```
+Run → Run Configurations → select GameServer → Arguments tab → VM arguments
+  → add: -Dprofile=wsl
+```
 
 </details>
 
 <details>
 <summary><b>Command line (no IDE)</b></summary>
 
-Place `dbconfig.properties` directly inside `src/` (not in any package subfolder):
-
+Place the config file directly inside `src/`:
 ```
 src/
-  dbconfig.properties    ← here
+  db-win-config.properties    ← here
   client/
   dao/
   ...
 ```
 
-Then compile with:
+Compile and copy:
 ```bash
 # Windows
-javac -cp "src;lib/mysql-connector-j-9.x.x.jar" -d out src/**/*.java
-copy src\dbconfig.properties out\
+javac -cp "src;lib/*" -d out src/**/*.java
+copy src\db-win-config.properties out\
 
 # Mac/Linux
-javac -cp "src:lib/mysql-connector-j-9.x.x.jar" -d out $(find src -name "*.java")
-cp src/dbconfig.properties out/
+javac -cp "src:lib/*" -d out $(find src -name "*.java")
+cp src/db-win-config.properties out/
 ```
 
-The manual `copy`/`cp` step is required because `javac` only copies `.java` files to the output directory — it ignores `.properties` files.
+Pass the profile flag at runtime (see Running the Application below).
 
 </details>
 
@@ -346,6 +373,8 @@ Compiled output goes to `bin/`.
 
 Open `service/GameServer.java` → click the green Run arrow next to `main()`, or right-click → `Run 'GameServer.main()'`.
 
+To use the WSL profile: `Run → Edit Configurations → GameServer → VM options → -Dprofile=wsl`
+
 The **Run** panel at the bottom shows server logs. Leave it running.
 
 </details>
@@ -357,19 +386,17 @@ Open `service/GameServer.java` → right-click anywhere in the editor → `Run A
 
 The **Console** view at the bottom shows server logs. Leave it running.
 
-To run a second configuration (the client) alongside it, Eclipse supports multiple simultaneous run configurations — see the client section below.
-
 </details>
 
 <details>
 <summary><b>Terminal</b></summary>
 
 ```bash
-# Windows
-java -cp "out;lib/mysql-connector-j-9.x.x.jar" service.GameServer
+# Windows — default (win) profile
+java -cp "out;lib/*" service.GameServer
 
-# Mac/Linux
-java -cp "out:lib/mysql-connector-j-9.x.x.jar" service.GameServer
+# WSL / Linux
+java -cp "out:lib/*" -Dprofile=wsl service.GameServer
 ```
 
 </details>
@@ -383,17 +410,11 @@ java -cp "out:lib/mysql-connector-j-9.x.x.jar" service.GameServer
 
 Open `client/GameClient.java` → right-click → `Run 'GameClient.main()'`.
 
-For **multiplayer**, you need two client instances running simultaneously.
-IntelliJ allows this — go to:
+For **multiplayer**, you need two client instances running simultaneously:
 ```
-Run → Edit Configurations
-  → select GameClient
-  → tick "Allow multiple instances"
-  → Apply
+Run → Edit Configurations → select GameClient → tick "Allow multiple instances" → Apply
 ```
 Then run `GameClient` twice. Each opens its own console tab.
-
-> **Password visibility:** IntelliJ's built-in console does not allocate a real terminal, so `System.console()` returns `null` and the password field is visible. To hide it, run the client from an external terminal window instead (see Terminal tab).
 
 </details>
 
@@ -402,37 +423,28 @@ Then run `GameClient` twice. Each opens its own console tab.
 
 Open `client/GameClient.java` → right-click → `Run As → Java Application`.
 
-For **multiplayer**, Eclipse runs only one instance of each class by default.
-To run a second client:
+For **multiplayer**, create a second run configuration:
 ```
-Run → Run Configurations
-  → double-click "Java Application" to create a new config
+Run → Run Configurations → double-click "Java Application"
   → Main Class: client.GameClient
-  → Name it "GameClient 2"
-  → Apply → Run
+  → Name it "GameClient 2" → Apply → Run
 ```
 Both client consoles appear as separate tabs in the Console view.
-Switch between them using the console selector dropdown (the monitor icon in the Console toolbar).
-
-> **Password visibility:** Eclipse's console also returns `null` for `System.console()`. Password input will be visible. Run from an external terminal to hide it.
 
 </details>
 
 <details>
 <summary><b>Terminal (recommended for correct password hiding)</b></summary>
 
-Open separate terminal windows for each client:
-
 ```bash
-# Windows — bin/ is Eclipse's output dir; use out/ for IntelliJ
-java -cp "bin;lib/mysql-connector-j-9.x.x.jar" client.GameClient
+# Windows
+java -cp "out;lib/*" client.GameClient
 
 # Mac/Linux
-java -cp "bin:lib/mysql-connector-j-9.x.x.jar" client.GameClient
+java -cp "out:lib/*" client.GameClient
 ```
 
 For multiplayer, open two terminal windows and run the same command in each.
-Both clients will type in their own window with passwords fully hidden.
 
 </details>
 
@@ -471,7 +483,7 @@ Enter 1, 2 or 3:
   =========
 Word: _______
 
-Enter your guess: t
+Your guess (letter / HINT / CHAT:message): t
 Word: t_____t
 Wrong attempts: 0/6
 ...
@@ -482,6 +494,67 @@ Your score: 72
 **Authentication flow:**
 - First time with a username → prompted to create a password → account registered
 - Returning player → prompted for password → up to 3 attempts → blocked on 3 failures
+
+---
+
+## Multiplayer Chat
+
+Players can send messages to their opponent at any point during a multiplayer game without interrupting the game flow.
+
+**Sending a message** — prefix your input with `CHAT:`:
+```
+Your guess (letter / HINT / CHAT:message): CHAT:good luck!
+```
+
+**Receiving a message** — the opponent's chat appears inline in your terminal:
+```
+[[CHAT]]bob: good luck!
+```
+
+**How it works under the hood:**
+
+`GameSession` owns one `PrintWriter` per socket and passes both down to a `ChatService` instance before the game starts. Each `HangmanGameEngine` receives a reference to the same `ChatService`. When the engine reads a line starting with `CHAT:`, it strips the prefix and calls `chatService.route(out, username, message)` — which writes to the *other* writer — then `continue`s the loop without consuming the input as a guess.
+
+`ChatService.route()` is `synchronized` to prevent interleaved output if both players send chat messages simultaneously. The sentinel `[[CHAT]]` prefix lets the client distinguish chat lines from game messages.
+
+Single-player games pass `null` for `chatService`; the null check in the engine means the feature has zero impact on solo games.
+
+---
+
+## Protocol Reference
+
+All communication travels in-band over the same TCP stream. The server prefixes structured signals so the client can switch on them:
+
+| Signal / Prefix | Direction | Meaning |
+|---|---|---|
+| `INPUT_USERNAME` | Server → Client | Prompt the user to type their username |
+| `INPUT_PASSWORD` | Server → Client | Prompt the user to type their password (hidden) |
+| `INPUT_CATEGORY` | Server → Client | Prompt the user to choose a word category |
+| `AUTH_SUCCESS` | Server → Client | Login or registration succeeded |
+| `MATCH_FOUND` | Server → Client | Opponent found; game is starting |
+| `CHAT:<text>` | Client → Server | Player is sending a chat message |
+| `[[CHAT]]<user>: <text>` | Server → Client | Incoming chat message from opponent |
+| `CHAT_SENT` | Server → Client | Silent ACK: chat message was delivered |
+| `HINT` | Client → Server | Player is requesting a hint |
+| `Ended` | Server → Client | Game over; client breaks out of the read loop |
+
+---
+
+## Connection Pooling
+
+Database connections are managed by **HikariCP**, replacing the earlier single-connection `DBConnection` utility.
+
+| Setting | Value | Reason |
+|---|---|---|
+| `maximumPoolSize` | 10 | Caps concurrent DB connections; matches typical MySQL `max_connections` headroom |
+| `minimumIdle` | 2 | Keeps two warm connections ready; avoids cold-start latency on the first request after idle |
+| `idleTimeout` | 30 000 ms | Returns idle connections to the pool after 30 s |
+| `connectionTimeout` | 30 000 ms | Fails fast if no connection is available within 30 s |
+| `maxLifetime` | 1 800 000 ms | Recycles connections every 30 min to avoid hitting MySQL's `wait_timeout` |
+
+`HikariConnectionManager` initialises the pool once in a `static` block and exposes a single `getDataSource()` method. Both `PlayerStatsDAO` and `WordsStatsDAO` receive a `DataSource` reference at construction time — they never call a global factory directly, which makes the DAOs independently testable.
+
+The legacy `JDBConnectionManager` (raw `DriverManager.getConnection`) is retained in the codebase for reference but is no longer used at runtime.
 
 ---
 
@@ -510,11 +583,24 @@ A single shared pool causes deadlock when `GameSession` (running on the pool) ca
 **Why `BlockingQueue` for matchmaking?**
 `LinkedBlockingQueue.take()` blocks the matchmaker thread cleanly until two players are available, without polling or `Thread.sleep()`. It's the textbook producer-consumer pattern and requires zero explicit synchronization.
 
-**Why `INSERT ... ON DUPLICATE KEY UPDATE` for stats?**
-The original check-then-insert pattern had a race condition: two threads finishing simultaneously for the same new user both see `null` from `getPlayerStats()` and both attempt `INSERT`, causing a duplicate-key error on the second. The UPSERT is atomic at the database level, eliminating the race entirely.
+**Why HikariCP instead of raw `DriverManager`?**
+Every DAO method previously opened and closed a fresh `DriverManager` connection. Under multiplayer load, this creates two new TCP connections to MySQL per guess — wasteful and slow. HikariCP maintains a warm pool and hands out connections in microseconds. It also handles connection validation, leak detection, and graceful eviction of stale connections automatically.
+
+**Why `DataSource` injected into DAOs, not a static factory?**
+Passing `DataSource` through the constructor means each DAO is a plain object that can be instantiated in a test with any `DataSource` implementation (including an in-memory H2 pool). A static `HikariConnectionManager.getDataSource()` call buried inside DAO methods would make unit testing impossible without reflection or PowerMock.
+
+**Why profile-based config files instead of one `dbconfig.properties`?**
+The game is developed on Windows but also run inside WSL, which has a different MySQL socket path and host. A `-Dprofile=` JVM flag selects the right file at startup without any code change — the same pattern used by Spring profiles, applied manually here.
+
+**Why `synchronized` on `ChatService.route()`?**
+`PrintWriter.println()` is synchronized internally per character, but two rapid calls from different threads can still interleave at the line level — thread 1 writes `[[CHAT]]alice: ` and thread 2 starts writing `[[CHAT]]bob: ` before thread 1 finishes, producing garbage on the recipient's screen. Synchronizing the whole method prevents this.
 
 **Why SHA-256 for passwords?**
-No external libraries are used in this project. SHA-256 is available in the Java standard library and is sufficient for a learning project. In a production system, BCrypt or Argon2 (intentionally slow, salted) would be the correct choice.
+No external libraries are used beyond HikariCP and the MySQL driver. SHA-256 is available in the Java standard library and is sufficient for a learning project. In a production system, BCrypt or Argon2 (intentionally slow, salted) would be the correct choice.
+
+**Why profile-based config files instead of one dbconfig.properties?**
+The server is developed on Windows but also run inside WSL or in Linux. The two environments differ in a few ways that affect the DB config: MySQL runs as a native Windows service and doesn't need a separate start step there, whereas under WSL it has to be started manually as a Linux service — and the host, port, or socket path can differ depending on how MySQL is exposed across the WSL network boundary. If the server is ever moved to a Linux machine entirely, the wsl profile (or a new linux one) covers that without touching code. A -Dprofile= JVM flag selects the right file at startup — the same pattern Spring uses for environment profiles, applied manually here.
+
 
 ---
 
@@ -524,3 +610,4 @@ No external libraries are used in this project. SHA-256 is available in the Java
 - **No SSL/TLS** — passwords are sent as plaintext over the TCP connection before hashing on the server; a production deployment would require TLS
 - **Plain scanner in IDE** — `System.console()` returns `null` in IDE run configurations, so password input is visible in the IDE console (works correctly when run from a real terminal)
 - **Single server instance** — no horizontal scaling; all state lives in the one JVM and the MySQL instance it connects to
+- **Chat is in-band only** — chat travels on the game TCP stream; there is no chat history, no persistence, and no offline messaging
