@@ -48,6 +48,7 @@ public class HangmanGameEngine {
         String username = null;
         int hintsUsed=0;
         int hintPenalty=0;
+        int result=0;
 
         try {
 
@@ -153,17 +154,15 @@ public class HangmanGameEngine {
             long end = System.nanoTime();
 
 
-            if (new String(display).equals(chosenWord)) {
-                score = calculateScore(wrongAttempts, start, end,hintPenalty);
-                out.println("Congratulations " + username + "! You guessed the word: " + chosenWord);
-                out.println("Your score: " + score);
-            } else {
-                out.println(HANGMAN_FRAMES[MAX_ATTEMPTS]);
-                out.println("Sorry " + username + "! The word was: " + chosenWord);
-                out.println("Your score: 0");
-            }
 
-            dao.updatePlayerStats(username, score);
+            if (new String(display).equals(chosenWord)) {
+                score = calculateScore(wrongAttempts, start, end, hintPenalty);
+                out.println("Congratulations...");
+                dao.updatePlayerStats(username, score, 1);
+            } else {
+                out.println("Sorry...");
+                dao.updatePlayerStats(username, 0, 0);
+            }
 
         } catch (SocketTimeoutException | SocketException e) {
             logger.log(Level.WARNING, "Client timed out or disconnected: {0}", username);

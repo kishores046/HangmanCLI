@@ -17,18 +17,20 @@ public class ClientHandler implements Runnable {
     private final ExecutorService gameSessionExecutor;
     private final ExecutorService hangmanEngineExecutor;
     private final HangmanGameEngine hangmanGameEngine;
+    private final LeaderboardPrinter leaderboardPrinter;
 
     private static final Logger logger = Logger.getLogger("ClientHandler");
 
     public ClientHandler(Socket socket,
                          MatchMakingService matchMakingService,
                          ExecutorService gameSessionExecutor,
-                         ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine) {
+                         ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter) {
         this.socket = socket;
         this.hangmanGameEngine=hangmanGameEngine;
         this.matchMakingService = matchMakingService;
         this.gameSessionExecutor = gameSessionExecutor;
         this.hangmanEngineExecutor = hangmanEngineExecutor;
+        this.leaderboardPrinter = leaderboardPrinter;
     }
 
     @Override
@@ -55,7 +57,7 @@ public class ClientHandler implements Runnable {
             switch (choice.trim()) {
                 case "1" -> {
                     WaitingPlayer player = new WaitingPlayer(socket, "");
-                    gameSessionExecutor.submit(new SingleModeSession(player,hangmanGameEngine));
+                    gameSessionExecutor.submit(new SingleModeSession(player,hangmanGameEngine,leaderboardPrinter));
                 }
                 case "2" -> {
                     WaitingPlayer player =
@@ -63,8 +65,7 @@ public class ClientHandler implements Runnable {
                     matchMakingService.enqueue(player);
                 }
                 case "3" -> {
-                    LeaderboardPrinter.print(writer);
-
+                    leaderboardPrinter.print(writer);
                     writer.println("Ended");
                 }
                 default -> {

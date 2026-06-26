@@ -24,14 +24,16 @@ public class GameSession implements Session {
     private final ExecutorService hangmanEngineExecutor;
 
     private static final Logger logger = Logger.getLogger("GameSession");
+    private final LeaderboardPrinter leaderboardPrinter;
 
     public GameSession(WaitingPlayer waitingPlayer1,
                        WaitingPlayer waitingPlayer2,
-                       ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine) {
+                       ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter) {
         this.waitingPlayer1 = waitingPlayer1;
         this.waitingPlayer2 = waitingPlayer2;
         this.hangmanEngineExecutor = hangmanEngineExecutor;
         this.hangmanGameEngine=hangmanGameEngine;
+        this.leaderboardPrinter = leaderboardPrinter;
     }
 
     @Override
@@ -69,9 +71,9 @@ public class GameSession implements Session {
             } else {
                 announceResult(out1, result1, "MATCH DRAWN!", out2, result2, "MATCH DRAWN!");
             }
-            LeaderboardPrinter.print(out1);
+           leaderboardPrinter.print(out1);
             out1.println("Ended");
-            LeaderboardPrinter.print(out2);
+            leaderboardPrinter.print(out2);
             out2.println("Ended");
         } catch (IOException e) {
             logger.log(Level.SEVERE, "Failed to send match result", e);

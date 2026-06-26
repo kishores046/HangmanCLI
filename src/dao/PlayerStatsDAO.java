@@ -48,8 +48,8 @@ public class PlayerStatsDAO {
     public boolean registerPlayer(String username, String passwordHash) {
         String sql =
                 "INSERT INTO player_stats " +
-                        "(username, password_hash, played_count, highest_score, total_score, last_played) " +
-                        "VALUES (?, ?, 0, 0, 0, ?)";
+                        "(username, password_hash, played_count, highest_score, total_score, last_played,total_wins) " +
+                        "VALUES (?, ?, 0, 0, 0, ?,0)";
         try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
@@ -101,7 +101,8 @@ public class PlayerStatsDAO {
                             rs.getInt("played_count"),
                             rs.getInt("highest_score"),
                             rs.getInt("total_score"),
-                            rs.getObject("last_played", LocalDateTime.class)
+                            rs.getObject("last_played", LocalDateTime.class),
+                            rs.getInt("total_wins")
                     );
                 }
             }
@@ -115,20 +116,22 @@ public class PlayerStatsDAO {
      * Pure UPDATE — player is guaranteed to exist after auth/registration.
      * No UPSERT needed anymore; that complexity is gone.
      */
-    public void updatePlayerStats(String username, int score) {
+    public void updatePlayerStats(String username, int score,int result) {
         String sql =
                 "UPDATE player_stats SET " +
                         "  played_count  = played_count + 1, " +
                         "  highest_score = GREATEST(highest_score, ?), " +
                         "  total_score   = total_score + ?, " +
-                        "  last_played   = ? " +
+                        "  last_played   = ?, " +
+                        "  total_wins      = total_wins + ? "+
                         "WHERE username = ?";
         try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, score);
             stmt.setInt(2, score);
             stmt.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
-            stmt.setString(4, username);
+            stmt.setInt(4,result);
+            stmt.setString(5, username);
             stmt.executeUpdate();
         } catch (SQLException e) {
             logger.log(Level.SEVERE, "Failed to update stats for: " + username, e);
@@ -137,8 +140,8 @@ public class PlayerStatsDAO {
 
     public List<PlayerStats> getTopNPlayers(int n) {
         String sql =
-                "SELECT username, played_count, highest_score, total_score, last_played " +
-                        "FROM player_stats " +
+                "SELECT username, played_count, highest_score, total_score, last_played ,total_wins" +
+                        " FROM player_stats " +
                         "ORDER BY total_score DESC, highest_score DESC " +
                         "LIMIT ?";
         List<PlayerStats> result = new ArrayList<>();
@@ -152,7 +155,8 @@ public class PlayerStatsDAO {
                             rs.getInt("played_count"),
                             rs.getInt("highest_score"),
                             rs.getInt("total_score"),
-                            rs.getObject("last_played", LocalDateTime.class)
+                            rs.getObject("last_played", LocalDateTime.class),
+                            rs.getInt("total_wins")
                     ));
                 }
             }

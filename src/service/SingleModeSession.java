@@ -16,11 +16,11 @@ public class SingleModeSession  implements Session{
     private final WaitingPlayer waitingPlayer;
     private final HangmanGameEngine hangmanGameEngine;
     private final Logger logger=Logger.getLogger("Single mode Session Logger");
-
-    public SingleModeSession(WaitingPlayer waitingPlayer, HangmanGameEngine hangmanGameEngine) {
+    private final LeaderboardPrinter leaderboardPrinter;
+    public SingleModeSession(WaitingPlayer waitingPlayer, HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter) {
         this.waitingPlayer = waitingPlayer;
         this.hangmanGameEngine = hangmanGameEngine;
-
+        this.leaderboardPrinter = leaderboardPrinter;
     }
 
     @Override
@@ -32,7 +32,7 @@ public class SingleModeSession  implements Session{
             if (clientDisconnectHandler.isDisconnected())return;
             out.println("Match Over");
             out.println("Your score: "+result.getScore());
-            LeaderboardPrinter.print(out);
+            leaderboardPrinter.print(out);
             out.println("Ended");
         }catch (IOException e){
             logger.log(Level.SEVERE,e.getMessage());

@@ -9,13 +9,15 @@ public class PlayerStats implements Serializable {
     private int highestScore;
     private LocalDateTime lastPlayed;
     private int totalScore;
+    private int totalWins;
 
-    public PlayerStats(String username, int playedCount, int highestScore,int totalScore, LocalDateTime lastPlayed) {
+    public PlayerStats(String username, int playedCount, int highestScore, int totalScore, LocalDateTime lastPlayed, int totalWins) {
         this.username = username;
         this.playedCount = playedCount;
         this.highestScore = highestScore;
         this.lastPlayed = lastPlayed;
         this.totalScore=totalScore;
+        this.totalWins = totalWins;
     }
 
     public int getTotalScore() {
@@ -45,6 +47,10 @@ public class PlayerStats implements Serializable {
     }
     public void setLastPlayed(LocalDateTime lastPlayed) {
         this.lastPlayed = lastPlayed; 
+    }
+
+    public int getTotalWins() {
+        return totalWins;
     }
 }
 
