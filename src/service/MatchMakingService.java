@@ -2,6 +2,7 @@ package service;
 
 import model.WaitingPlayer;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
@@ -17,7 +18,7 @@ public class MatchMakingService {
     private final BlockingQueue<WaitingPlayer> waitingQueue = new LinkedBlockingQueue<>();
     private final ExecutorService gameSessionExecutor;
     private final ExecutorService hangmanEngineExecutor;
-
+    private final HangmanGameEngine hangmanGameEngine;
 
     private final ExecutorService matchMakerThread = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "matchmaker-thread");
@@ -28,18 +29,19 @@ public class MatchMakingService {
     private static final Logger logger = Logger.getLogger("MatchMakingService");
 
     public MatchMakingService(ExecutorService gameSessionExecutor,
-                              ExecutorService hangmanEngineExecutor) {
+                              ExecutorService hangmanEngineExecutor,
+                              HangmanGameEngine hangmanGameEngine) {
         this.gameSessionExecutor = gameSessionExecutor;
         this.hangmanEngineExecutor = hangmanEngineExecutor;
-
+        this.hangmanGameEngine=hangmanGameEngine;
         matchMakerThread.submit(this::matchMakeWaitingPlayers);
     }
 
     public void enqueue(WaitingPlayer player) {
         waitingQueue.add(player);
-        logger.log(Level.INFO, "Player queued: {0} (queue size: {1})",
-                new Object[]{player.getUsername(), waitingQueue.size()});
-        try{
+        logger.log(Level.INFO, "Player queued from {0} (queue size: {1})",
+                new Object[]{player.getSocket().getInetAddress().getHostAddress(), waitingQueue.size()});
+       try{
             PrintWriter out=new PrintWriter(new OutputStreamWriter(player.getSocket().getOutputStream()),true);
             out.println("WAITING");
             out.println("Waiting for another player...");
@@ -56,7 +58,7 @@ public class MatchMakingService {
                 WaitingPlayer p2 = waitingQueue.take();
                 logger.log(Level.INFO, "Matched {0} vs {1}",
                         new Object[]{p1.getUsername(), p2.getUsername()});
-                gameSessionExecutor.submit(new GameSession(p1, p2, hangmanEngineExecutor));
+                gameSessionExecutor.submit(new GameSession(p1, p2, hangmanEngineExecutor,hangmanGameEngine));
             }
         } catch (InterruptedException e) {
 

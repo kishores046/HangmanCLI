@@ -4,6 +4,7 @@ import model.PlayerResult;
 import model.WaitingPlayer;
 import util.LeaderboardPrinter;
 
+import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -17,7 +18,7 @@ public class GameSession implements Session {
 
     private final WaitingPlayer waitingPlayer1;
     private final WaitingPlayer waitingPlayer2;
-    private final HangmanGameEngine hangmanGameEngine = new HangmanGameEngine();
+    private final HangmanGameEngine hangmanGameEngine;
 
 
     private final ExecutorService hangmanEngineExecutor;
@@ -26,19 +27,20 @@ public class GameSession implements Session {
 
     public GameSession(WaitingPlayer waitingPlayer1,
                        WaitingPlayer waitingPlayer2,
-                       ExecutorService hangmanEngineExecutor) {
+                       ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine) {
         this.waitingPlayer1 = waitingPlayer1;
         this.waitingPlayer2 = waitingPlayer2;
         this.hangmanEngineExecutor = hangmanEngineExecutor;
+        this.hangmanGameEngine=hangmanGameEngine;
     }
 
     @Override
     public void run() {
-        try {
-            PrintWriter out1 = new PrintWriter(waitingPlayer1.getSocket().getOutputStream(), true);
+        try(PrintWriter out1 = new PrintWriter(waitingPlayer1.getSocket().getOutputStream(), true);
             PrintWriter out2 = new PrintWriter(waitingPlayer2.getSocket().getOutputStream(), true);
             BufferedReader in1 = new BufferedReader(new InputStreamReader(waitingPlayer1.getSocket().getInputStream()));
             BufferedReader in2 = new BufferedReader(new InputStreamReader(waitingPlayer2.getSocket().getInputStream()));
+        ) {
 
             out1.println("MATCH_FOUND");
             out1.println("Opponent found! Starting game...");
@@ -46,16 +48,19 @@ public class GameSession implements Session {
             out2.println("Opponent found! Starting game...");
 
             ChatService chatService=new ChatService(out1,out2);
+            ClientDisconnectHandler clientDisconnectHandler=new ClientDisconnectHandler(out1,out2);
             CompletableFuture<PlayerResult> future1 =
                     CompletableFuture.supplyAsync(
-                            () -> hangmanGameEngine.run(waitingPlayer1,in1,out1,chatService), hangmanEngineExecutor);
+                            () -> hangmanGameEngine.run(waitingPlayer1,in1,out1,chatService,clientDisconnectHandler), hangmanEngineExecutor);
 
             CompletableFuture<PlayerResult> future2 =
                     CompletableFuture.supplyAsync(
-                            () -> hangmanGameEngine.run(waitingPlayer2,in2,out2,chatService), hangmanEngineExecutor);
+                            () -> hangmanGameEngine.run(waitingPlayer2,in2,out2,chatService,clientDisconnectHandler), hangmanEngineExecutor);
 
             PlayerResult result1 = future1.join();
             PlayerResult result2 = future2.join();
+
+            if(clientDisconnectHandler.isDisconnected())return;
 
             if (result1.getScore() > result2.getScore()) {
                 announceResult(out1, result1, "YOU WIN!",    out2, result2, "YOU LOSE!");

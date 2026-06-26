@@ -1,5 +1,8 @@
 package service;
 
+import util.HikariConnectionManager;
+
+import javax.sql.DataSource;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -21,9 +24,12 @@ public class GameServer {
     private static final ExecutorService HANGMAN_ENGINE_POOL =
             Executors.newCachedThreadPool();
 
-    private static final MatchMakingService MATCHMAKER =
-            new MatchMakingService(GAME_SESSION_POOL, HANGMAN_ENGINE_POOL);
+    private static final DataSource DATA_SOURCE= HikariConnectionManager.getDataSource();
 
+
+    private static final HangmanGameEngine HANGMAN_ENGINE=new HangmanGameEngine(DATA_SOURCE);
+    private static final MatchMakingService MATCHMAKER =
+            new MatchMakingService(GAME_SESSION_POOL, HANGMAN_ENGINE_POOL,HANGMAN_ENGINE);
     private static final Logger serverLogger = Logger.getLogger("GameServer");
 
     public static void main(String[] args) {
@@ -33,9 +39,10 @@ public class GameServer {
             serverLogger.log(Level.INFO, "Hangman server running on port 8080");
             while (true) {
                 Socket clientSocket = serverSocket.accept();
+                clientSocket.setSoTimeout(120_000);
                 serverLogger.log(Level.INFO, "Client connected: {0}", clientSocket.getInetAddress().getHostAddress());
                 CLIENT_HANDLER_POOL.execute(
-                        new ClientHandler(clientSocket, MATCHMAKER, GAME_SESSION_POOL, HANGMAN_ENGINE_POOL));
+                        new ClientHandler(clientSocket, MATCHMAKER, GAME_SESSION_POOL, HANGMAN_ENGINE_POOL,HANGMAN_ENGINE));
             }
         } catch (Exception e) {
             serverLogger.log(Level.SEVERE, "Server crashed", e);

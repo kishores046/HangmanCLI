@@ -3,6 +3,7 @@ package service;
 import model.WaitingPlayer;
 import util.LeaderboardPrinter;
 
+import javax.sql.DataSource;
 import java.io.*;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
@@ -15,14 +16,16 @@ public class ClientHandler implements Runnable {
     private final MatchMakingService matchMakingService;
     private final ExecutorService gameSessionExecutor;
     private final ExecutorService hangmanEngineExecutor;
+    private final HangmanGameEngine hangmanGameEngine;
 
     private static final Logger logger = Logger.getLogger("ClientHandler");
 
     public ClientHandler(Socket socket,
                          MatchMakingService matchMakingService,
                          ExecutorService gameSessionExecutor,
-                         ExecutorService hangmanEngineExecutor) {
+                         ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine) {
         this.socket = socket;
+        this.hangmanGameEngine=hangmanGameEngine;
         this.matchMakingService = matchMakingService;
         this.gameSessionExecutor = gameSessionExecutor;
         this.hangmanEngineExecutor = hangmanEngineExecutor;
@@ -52,7 +55,7 @@ public class ClientHandler implements Runnable {
             switch (choice.trim()) {
                 case "1" -> {
                     WaitingPlayer player = new WaitingPlayer(socket, "");
-                    gameSessionExecutor.submit(new SingleModeSession(player, hangmanEngineExecutor));
+                    gameSessionExecutor.submit(new SingleModeSession(player,hangmanGameEngine));
                 }
                 case "2" -> {
                     WaitingPlayer player =

@@ -8,20 +8,19 @@ import util.HikariConnectionManager;
 import util.PasswordUtil;
 
 import javax.sql.DataSource;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class HangmanGameEngine {
 
-    private static final DataSource DATA_SOURCE=HikariConnectionManager.getDataSource();
-    private final PlayerStatsDAO dao = new PlayerStatsDAO(DATA_SOURCE);
-    private final WordsStatsDAO wso = new WordsStatsDAO(DATA_SOURCE);
+
+    private final PlayerStatsDAO dao;
+    private final WordsStatsDAO wso;
     private static final AuthenticationService authenticationService = AuthenticationService.getInstance();
     private static final int MAX_ATTEMPTS = 6;
     private static final int MAX_HINTS=4;
@@ -38,8 +37,13 @@ public class HangmanGameEngine {
             "   +---+\n   |   |\n   O   |\n  /|\\  |\n  / \\  |\n       |\n  ========="
     };
 
-    public PlayerResult run(WaitingPlayer waitingPlayer,BufferedReader in,PrintWriter out,ChatService chatService) {
-        Socket socket = waitingPlayer.getSocket();
+    public HangmanGameEngine(DataSource dataSource) {
+        this.dao=new PlayerStatsDAO(dataSource);
+        this.wso=new WordsStatsDAO(dataSource);
+    }
+
+    public PlayerResult run(WaitingPlayer waitingPlayer,BufferedReader in,PrintWriter out,ChatService chatService,ClientDisconnectHandler clientDisconnectHandler) {
+
         int score = 0;
         String username = null;
         int hintsUsed=0;
@@ -161,7 +165,10 @@ public class HangmanGameEngine {
 
             dao.updatePlayerStats(username, score);
 
-        } catch (Exception e) {
+        } catch (SocketTimeoutException | SocketException e) {
+            logger.log(Level.WARNING, "Client timed out or disconnected: {0}", username);
+            clientDisconnectHandler.handleClientDisconnect(out);
+        } catch (IOException e) {
             logger.log(Level.SEVERE, "Error during game for user: " + username, e);
         }
 
