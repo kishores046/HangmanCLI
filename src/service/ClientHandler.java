@@ -3,7 +3,6 @@ package service;
 import model.WaitingPlayer;
 import util.LeaderboardPrinter;
 
-import javax.sql.DataSource;
 import java.io.*;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
@@ -15,22 +14,24 @@ public class ClientHandler implements Runnable {
     private final Socket socket;
     private final MatchMakingService matchMakingService;
     private final ExecutorService gameSessionExecutor;
-    private final ExecutorService hangmanEngineExecutor;
     private final HangmanGameEngine hangmanGameEngine;
     private final LeaderboardPrinter leaderboardPrinter;
+    private final MatchHistoryService matchHistoryService;
+    private static final AuthenticationService authenticationService=AuthenticationService.getInstance();
 
     private static final Logger logger = Logger.getLogger("ClientHandler");
 
     public ClientHandler(Socket socket,
                          MatchMakingService matchMakingService,
                          ExecutorService gameSessionExecutor,
-                         ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter) {
+                         HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter, MatchHistoryService matchHistoryDao) {
         this.socket = socket;
         this.hangmanGameEngine=hangmanGameEngine;
         this.matchMakingService = matchMakingService;
         this.gameSessionExecutor = gameSessionExecutor;
-        this.hangmanEngineExecutor = hangmanEngineExecutor;
         this.leaderboardPrinter = leaderboardPrinter;
+        this.matchHistoryService =matchHistoryDao;
+
     }
 
     @Override
@@ -41,13 +42,29 @@ public class ClientHandler implements Runnable {
             PrintWriter writer =
                     new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
 
+
+            writer.println("INPUT_USERNAME");
+            String username = reader.readLine();
+            if (username == null || username.isBlank()) {
+                writer.println("Invalid username. Disconnecting.");
+                writer.println("Ended");
+                return;
+            }
+            WaitingPlayer player = new WaitingPlayer(socket, username.trim(), -1);
+            boolean authOk = authenticationService.handleAuth(player, username,reader, writer);
+            if (!authOk) {
+                writer.println("Ended");
+                return;
+            }
+
             writer.println("INPUT_MODE");
             writer.println("Choose mode");
             writer.println("1: Single Player");
             writer.println("2: Multi Player ");
             writer.println("3: LeaderBoard  ");
+            writer.println("4: Match History");
+            writer.println("5: Solo History");
             writer.println("Enter your choice ");
-
             String choice = reader.readLine();
             if (choice == null) {
                 logger.log(Level.WARNING, "Client disconnected before sending a choice");
@@ -56,16 +73,24 @@ public class ClientHandler implements Runnable {
 
             switch (choice.trim()) {
                 case "1" -> {
-                    WaitingPlayer player = new WaitingPlayer(socket, "");
-                    gameSessionExecutor.submit(new SingleModeSession(player,hangmanGameEngine,leaderboardPrinter));
+
+                    gameSessionExecutor.submit(new SingleModeSession(player,hangmanGameEngine,leaderboardPrinter, matchHistoryService));
                 }
                 case "2" -> {
-                    WaitingPlayer player =
-                            new WaitingPlayer(socket, socket.getInetAddress().getHostName());
                     matchMakingService.enqueue(player);
                 }
                 case "3" -> {
                     leaderboardPrinter.print(writer);
+                    writer.println("Ended");
+                }
+                case "4" -> {
+                    matchHistoryService.printMatchHistory(
+                            player.getId(), player.getUsername(), writer);
+                    writer.println("Ended");
+                }
+                case "5" -> {
+                    matchHistoryService.printSinglePlayerHistory(
+                            player.getId(), player.getUsername(), writer);
                     writer.println("Ended");
                 }
                 default -> {

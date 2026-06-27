@@ -20,14 +20,16 @@ public class GameClient {
 
                 switch (serverMessage) {
 
-                      case "INPUT_MODE" -> {
-                        for (int i = 0; i < 5; i++) System.out.println(in.readLine());
-                        System.out.print("> ");
-                        out.println(sc.nextLine());
-                    }
+
 
                    case "INPUT_USERNAME" -> {
                         System.out.print("Enter your username: ");
+                        out.println(sc.nextLine());
+                    }
+
+                    case "INPUT_MODE" -> {
+                        for (int i = 0; i < 7; i++) System.out.println(in.readLine());
+                        System.out.print("> ");
                         out.println(sc.nextLine());
                     }
 

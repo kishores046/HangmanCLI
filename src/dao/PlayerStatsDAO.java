@@ -21,7 +21,7 @@ public class PlayerStatsDAO {
     }
 
 
-    // ── Authentication ────────────────────────────────────────────────────────
+
 
     /**
      * Returns true if the username already exists in the table.
@@ -45,7 +45,7 @@ public class PlayerStatsDAO {
      * Registers a brand-new player with a hashed password.
      * Returns false if the username was already taken (race condition guard).
      */
-    public boolean registerPlayer(String username, String passwordHash) {
+    public int registerPlayer(String username, String passwordHash) {
         String sql =
                 "INSERT INTO player_stats " +
                         "(username, password_hash, played_count, highest_score, total_score, last_played,total_wins) " +
@@ -56,36 +56,40 @@ public class PlayerStatsDAO {
             stmt.setString(2, passwordHash);
             stmt.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
             stmt.executeUpdate();
-            return true;
+            try (ResultSet keys = stmt.getGeneratedKeys()) {
+                if (keys.next()) return keys.getInt(1);
+            }
         } catch (SQLIntegrityConstraintViolationException e) {
             logger.log(Level.WARNING, "Username already taken (race): " + username);
-            return false;
+
         } catch (SQLException e) {
             logger.log(Level.SEVERE, "Failed to register player: " + username, e);
-            return false;
+
         }
+        return -1;
     }
 
     /**
      * Verifies a login attempt. Returns true if credentials match.
      */
-    public boolean authenticate(String username, String plaintextPassword) {
-        String sql = "SELECT password_hash FROM player_stats WHERE username = ?";
+    public int authenticate(String username, String plaintextPassword) {
+        String sql = "SELECT id, password_hash FROM player_stats WHERE username = ?";
         try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return PasswordUtil.verify(plaintextPassword, rs.getString("password_hash"));
+                    boolean match =PasswordUtil.verify(plaintextPassword, rs.getString("password_hash"));
+                    return match ?rs.getInt(1):-1;
                 }
+                return -1;
             }
         } catch (SQLException e) {
             logger.log(Level.SEVERE, "Failed to authenticate: " + username, e);
         }
-        return false;
+        return -1;
     }
 
-    // ── Stats ─────────────────────────────────────────────────────────────────
 
     public PlayerStats getPlayerStats(String username) {
         String sql =

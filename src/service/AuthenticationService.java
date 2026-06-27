@@ -1,6 +1,7 @@
 package service;
 
 import dao.PlayerStatsDAO;
+import model.WaitingPlayer;
 import util.HikariConnectionManager;
 import util.PasswordUtil;
 
@@ -25,7 +26,7 @@ public class AuthenticationService {
      * Old user   -> INPUT_PASSWORD_AUTH -> verify (up to MAX_AUTH_ATTEMPTS tries)
      * Returns true = proceed, false = disconnect.
      */
-     public boolean handleAuth(String username, BufferedReader in, PrintWriter out)
+     public boolean handleAuth(WaitingPlayer waitingPlayer,String username, BufferedReader in, PrintWriter out)
             throws java.io.IOException {
 
         if (!dao.usernameExists(username)) {
@@ -38,9 +39,9 @@ public class AuthenticationService {
                 out.println("No password provided. Disconnecting.");
                 return false;
             }
-
-            boolean registered = dao.registerPlayer(username, PasswordUtil.hash(password.trim()));
-            if (registered) {
+            int registeredId = dao.registerPlayer(username, PasswordUtil.hash(password.trim()));
+            waitingPlayer.setId(registeredId);
+            if (registeredId!=-1) {
                 out.println("AUTH_SUCCESS");
                 out.println("Account created! Welcome, " + username + "!");
                 return true;
@@ -62,7 +63,9 @@ public class AuthenticationService {
                     return false;
                 }
 
-                if (dao.authenticate(username, password.trim())) {
+                int registerId=dao.authenticate(username, password.trim());
+                waitingPlayer.setId(registerId);
+                if (registerId!=-1) {
                     out.println("AUTH_SUCCESS");
                     out.println("Authenticated! Good to see you again, " + username + "!");
                     return true;

@@ -3,6 +3,7 @@ package service;
 import dao.PlayerStatsDAO;
 import dao.WordsStatsDAO;
 import model.PlayerResult;
+import model.Status;
 import model.WaitingPlayer;
 import util.HikariConnectionManager;
 import util.PasswordUtil;
@@ -45,28 +46,13 @@ public class HangmanGameEngine {
     public PlayerResult run(WaitingPlayer waitingPlayer,BufferedReader in,PrintWriter out,ChatService chatService,ClientDisconnectHandler clientDisconnectHandler) {
 
         int score = 0;
-        String username = null;
+        String username = waitingPlayer.getUsername();
         int hintsUsed=0;
         int hintPenalty=0;
-        int result=0;
-
+        int wrongAttempts = 0;
+        long end=0;
+        long start=0;
         try {
-
-            out.println("INPUT_USERNAME");
-            username = in.readLine();
-            if (username == null || username.isBlank()) {
-                out.println("Invalid username. Connection closing.");
-                return new PlayerResult("unknown", 0);
-            }
-            username = username.trim();
-
-
-            boolean authOk =authenticationService.handleAuth(username, in, out);
-            if (!authOk) return new PlayerResult(username, 0);
-
-            waitingPlayer.setUsername(username);
-
-
             out.println("INPUT_CATEGORY");
             out.println("Welcome " + username + "! Let's play Hangman.");
             out.println("Choose your category:");
@@ -79,7 +65,7 @@ public class HangmanGameEngine {
             String chosenWord = wso.getWordUnderGivenCategory(choice);
             if (chosenWord == null || chosenWord.isBlank()) {
                 out.println("No words available for that category. Please try again later.");
-                return new PlayerResult(username, 0);
+                return new PlayerResult(username, 0,Status.NOTHING,0,0);
             }
             chosenWord = chosenWord.toLowerCase().trim();
 
@@ -87,11 +73,11 @@ public class HangmanGameEngine {
             char[] display = new char[chosenWord.length()];
             Arrays.fill(display, '_');
             Set<Character> guessedLetters = new HashSet<>();
-            int wrongAttempts = 0;
+
 
             out.println(HANGMAN_FRAMES[0]);
             out.println("Word: " + new String(display));
-            long start = System.nanoTime();
+            start = System.nanoTime();
             out.println("INPUT_GUESS");
 
             while (wrongAttempts < MAX_ATTEMPTS && new String(display).contains("_")) {
@@ -151,14 +137,12 @@ public class HangmanGameEngine {
                 out.println(HANGMAN_FRAMES[wrongAttempts]);
             }
 
-            long end = System.nanoTime();
-
-
-
+            end = System.nanoTime();
             if (new String(display).equals(chosenWord)) {
                 score = calculateScore(wrongAttempts, start, end, hintPenalty);
                 out.println("Congratulations...");
                 dao.updatePlayerStats(username, score, 1);
+                return new PlayerResult(username, score, Status.WIN ,wrongAttempts, (int)((end - start) / 1_000_000_000L));
             } else {
                 out.println("Sorry...");
                 dao.updatePlayerStats(username, 0, 0);
@@ -167,11 +151,15 @@ public class HangmanGameEngine {
         } catch (SocketTimeoutException | SocketException e) {
             logger.log(Level.WARNING, "Client timed out or disconnected: {0}", username);
             clientDisconnectHandler.handleClientDisconnect(out);
+            return new PlayerResult(username, 0, Status.NOTHING, wrongAttempts,
+                    (int)((end - start) / 1_000_000_000L));
         } catch (IOException e) {
             logger.log(Level.SEVERE, "Error during game for user: " + username, e);
+            return new PlayerResult(username, 0, Status.NOTHING, wrongAttempts,
+                    (int)((end - start) / 1_000_000_000L));
         }
 
-        return new PlayerResult(username != null ? username : "unknown", score);
+        return new PlayerResult(username, score, Status.LOSE, wrongAttempts, (int)((end - start) / 1_000_000_000L));
     }
 
     private int parseChoice(String line) {

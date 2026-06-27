@@ -4,7 +4,6 @@ import model.PlayerResult;
 import model.WaitingPlayer;
 import util.LeaderboardPrinter;
 
-import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -19,21 +18,20 @@ public class GameSession implements Session {
     private final WaitingPlayer waitingPlayer1;
     private final WaitingPlayer waitingPlayer2;
     private final HangmanGameEngine hangmanGameEngine;
-
-
     private final ExecutorService hangmanEngineExecutor;
-
+    private final MatchHistoryService matchHistoryService;
     private static final Logger logger = Logger.getLogger("GameSession");
     private final LeaderboardPrinter leaderboardPrinter;
 
     public GameSession(WaitingPlayer waitingPlayer1,
                        WaitingPlayer waitingPlayer2,
-                       ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter) {
+                       ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter, MatchHistoryService matchHistoryService) {
         this.waitingPlayer1 = waitingPlayer1;
         this.waitingPlayer2 = waitingPlayer2;
         this.hangmanEngineExecutor = hangmanEngineExecutor;
         this.hangmanGameEngine=hangmanGameEngine;
         this.leaderboardPrinter = leaderboardPrinter;
+        this.matchHistoryService=matchHistoryService;
     }
 
     @Override
@@ -64,12 +62,25 @@ public class GameSession implements Session {
 
             if(clientDisconnectHandler.isDisconnected())return;
 
-            if (result1.getScore() > result2.getScore()) {
+            if (result1.score() > result2.score()) {
                 announceResult(out1, result1, "YOU WIN!",    out2, result2, "YOU LOSE!");
-            } else if (result1.getScore() < result2.getScore()) {
+                matchHistoryService.saveMatch(waitingPlayer1.getId(), waitingPlayer2.getId(), waitingPlayer1.getId(),           // winner = p1
+                        result1.score(), result2.score(),
+                        result1.secondsTaken(), result2.secondsTaken(),
+                        "player1_win");
+            } else if (result1.score() < result2.score()) {
                 announceResult(out2, result2, "YOU WIN!",    out1, result1, "YOU LOSE!");
+                matchHistoryService.saveMatch(waitingPlayer1.getId(), waitingPlayer2.getId(), waitingPlayer2.getId(),           // winner = p2
+                        result1.score(), result2.score(),
+                        result1.secondsTaken(), result2.secondsTaken(),
+                        "player2_win");
             } else {
                 announceResult(out1, result1, "MATCH DRAWN!", out2, result2, "MATCH DRAWN!");
+                matchHistoryService.saveMatch(waitingPlayer1.getId(), waitingPlayer2.getId(), null,
+                        result1.score(), result2.score(),
+                        result1.secondsTaken(), result2.secondsTaken(),
+                        "draw");
+
             }
            leaderboardPrinter.print(out1);
             out1.println("Ended");
@@ -93,13 +104,13 @@ public class GameSession implements Session {
     private void announceResult(PrintWriter winnerOut, PlayerResult winnerResult, String winnerMsg,
                                 PrintWriter loserOut,  PlayerResult loserResult,  String loserMsg) {
         winnerOut.println("MATCH OVER");
-        winnerOut.println("Your Score: "     + winnerResult.getScore());
-        winnerOut.println("Opponent Score: " + loserResult.getScore());
+        winnerOut.println("Your Score: "     + winnerResult.score());
+        winnerOut.println("Opponent Score: " + loserResult.score());
         winnerOut.println(winnerMsg);
 
         loserOut.println("MATCH OVER");
-        loserOut.println("Your Score: "     + loserResult.getScore());
-        loserOut.println("Opponent Score: " + winnerResult.getScore());
+        loserOut.println("Your Score: "     + loserResult.score());
+        loserOut.println("Opponent Score: " + winnerResult.score());
         loserOut.println(loserMsg);
     }
 }

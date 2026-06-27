@@ -3,7 +3,6 @@ package service;
 import model.WaitingPlayer;
 import util.LeaderboardPrinter;
 
-import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
@@ -21,6 +20,7 @@ public class MatchMakingService {
     private final ExecutorService hangmanEngineExecutor;
     private final HangmanGameEngine hangmanGameEngine;
     private final LeaderboardPrinter leaderboardPrinter;
+    private final MatchHistoryService matchHistoryService;
 
     private final ExecutorService matchMakerThread = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "matchmaker-thread");
@@ -32,11 +32,12 @@ public class MatchMakingService {
 
     public MatchMakingService(ExecutorService gameSessionExecutor,
                               ExecutorService hangmanEngineExecutor,
-                              HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter) {
+                              HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter, MatchHistoryService matchHistoryService) {
         this.gameSessionExecutor = gameSessionExecutor;
         this.hangmanEngineExecutor = hangmanEngineExecutor;
         this.hangmanGameEngine=hangmanGameEngine;
         this.leaderboardPrinter = leaderboardPrinter;
+        this.matchHistoryService=matchHistoryService;
         matchMakerThread.submit(this::matchMakeWaitingPlayers);
     }
 
@@ -61,7 +62,7 @@ public class MatchMakingService {
                 WaitingPlayer p2 = waitingQueue.take();
                 logger.log(Level.INFO, "Matched {0} vs {1}",
                         new Object[]{p1.getUsername(), p2.getUsername()});
-                gameSessionExecutor.submit(new GameSession(p1, p2, hangmanEngineExecutor,hangmanGameEngine,leaderboardPrinter));
+                gameSessionExecutor.submit(new GameSession(p1, p2, hangmanEngineExecutor,hangmanGameEngine,leaderboardPrinter,matchHistoryService));
             }
         } catch (InterruptedException e) {
 

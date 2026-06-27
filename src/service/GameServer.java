@@ -1,5 +1,8 @@
 package service;
 
+import dao.MatchHistoryDAO;
+
+import dao.SingleModeSessionDAO;
 import util.HikariConnectionManager;
 import util.LeaderboardPrinter;
 
@@ -10,7 +13,6 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -26,13 +28,14 @@ public class GameServer {
             Executors.newCachedThreadPool();
 
     private static final DataSource DATA_SOURCE= HikariConnectionManager.getDataSource();
-
-
     private static final LeaderboardPrinter LEADERBOARD = new LeaderboardPrinter(DATA_SOURCE);
-
     private static final HangmanGameEngine HANGMAN_ENGINE=new HangmanGameEngine(DATA_SOURCE);
+    private static final MatchHistoryDAO MATCH_HISTORY_DAO=new MatchHistoryDAO(DATA_SOURCE);
+    private static final SingleModeSessionDAO SINGLE_MODE_SESSION_DAO=new SingleModeSessionDAO(DATA_SOURCE);
+    private static final MatchHistoryService MATCH_HISTORY_SERVICE = new MatchHistoryService(MATCH_HISTORY_DAO,SINGLE_MODE_SESSION_DAO);
     private static final MatchMakingService MATCHMAKER =
-            new MatchMakingService(GAME_SESSION_POOL, HANGMAN_ENGINE_POOL,HANGMAN_ENGINE,LEADERBOARD);
+            new MatchMakingService(GAME_SESSION_POOL, HANGMAN_ENGINE_POOL,HANGMAN_ENGINE,LEADERBOARD,MATCH_HISTORY_SERVICE);
+
     private static final Logger serverLogger = Logger.getLogger("GameServer");
 
     public static void main(String[] args) {
@@ -45,7 +48,7 @@ public class GameServer {
                 clientSocket.setSoTimeout(120_000);
                 serverLogger.log(Level.INFO, "Client connected: {0}", clientSocket.getInetAddress().getHostAddress());
                 CLIENT_HANDLER_POOL.execute(
-                        new ClientHandler(clientSocket, MATCHMAKER, GAME_SESSION_POOL, HANGMAN_ENGINE_POOL,HANGMAN_ENGINE,LEADERBOARD));
+                        new ClientHandler(clientSocket, MATCHMAKER, GAME_SESSION_POOL,HANGMAN_ENGINE,LEADERBOARD,MATCH_HISTORY_SERVICE));
             }
         } catch (Exception e) {
             serverLogger.log(Level.SEVERE, "Server crashed", e);
