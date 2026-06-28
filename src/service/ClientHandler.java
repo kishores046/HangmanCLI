@@ -2,6 +2,7 @@ package service;
 
 import model.WaitingPlayer;
 import util.LeaderboardPrinter;
+import util.ProfilePrinter;
 
 import java.io.*;
 import java.net.Socket;
@@ -18,19 +19,20 @@ public class ClientHandler implements Runnable {
     private final LeaderboardPrinter leaderboardPrinter;
     private final MatchHistoryService matchHistoryService;
     private static final AuthenticationService authenticationService=AuthenticationService.getInstance();
-
+    private final ProfilePrinter profilePrinter;
     private static final Logger logger = Logger.getLogger("ClientHandler");
 
     public ClientHandler(Socket socket,
                          MatchMakingService matchMakingService,
                          ExecutorService gameSessionExecutor,
-                         HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter, MatchHistoryService matchHistoryDao) {
+                         HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter, MatchHistoryService matchHistoryDao, ProfilePrinter profilePrinter) {
         this.socket = socket;
         this.hangmanGameEngine=hangmanGameEngine;
         this.matchMakingService = matchMakingService;
         this.gameSessionExecutor = gameSessionExecutor;
         this.leaderboardPrinter = leaderboardPrinter;
         this.matchHistoryService =matchHistoryDao;
+        this.profilePrinter=profilePrinter;
 
     }
 
@@ -64,6 +66,7 @@ public class ClientHandler implements Runnable {
             writer.println("3: LeaderBoard  ");
             writer.println("4: Match History");
             writer.println("5: Solo History");
+            writer.println("6: Player Profile");
             writer.println("Enter your choice ");
             String choice = reader.readLine();
             if (choice == null) {
@@ -91,6 +94,10 @@ public class ClientHandler implements Runnable {
                 case "5" -> {
                     matchHistoryService.printSinglePlayerHistory(
                             player.getId(), player.getUsername(), writer);
+                    writer.println("Ended");
+                }
+                case "6"->{
+                    profilePrinter.printPlayerProfile(player.getUsername(), writer);
                     writer.println("Ended");
                 }
                 default -> {

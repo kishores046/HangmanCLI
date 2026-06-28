@@ -28,19 +28,12 @@ public class GameClient {
                     }
 
                     case "INPUT_MODE" -> {
-                        for (int i = 0; i < 7; i++) System.out.println(in.readLine());
+                        for (int i = 0; i < 8; i++) System.out.println(in.readLine());
                         System.out.print("> ");
                         out.println(sc.nextLine());
                     }
 
-                     case "INPUT_PASSWORD_NEW" -> {
-                        System.out.println(in.readLine());
-                        System.out.print("Password (hidden): ");
-                        String pw = readPassword(sc);
-                        out.println(pw);
-                    }
-
-                   case "INPUT_PASSWORD_AUTH" -> {
+                     case "INPUT_PASSWORD_NEW", "INPUT_PASSWORD_AUTH" -> {
                         System.out.println(in.readLine());
                         System.out.print("Password (hidden): ");
                         String pw = readPassword(sc);

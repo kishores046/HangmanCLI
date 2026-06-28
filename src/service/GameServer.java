@@ -2,9 +2,11 @@ package service;
 
 import dao.MatchHistoryDAO;
 
+import dao.PlayerStatsDAO;
 import dao.SingleModeSessionDAO;
 import util.HikariConnectionManager;
 import util.LeaderboardPrinter;
+import util.ProfilePrinter;
 
 import javax.sql.DataSource;
 import java.net.InetSocketAddress;
@@ -35,7 +37,8 @@ public class GameServer {
     private static final MatchHistoryService MATCH_HISTORY_SERVICE = new MatchHistoryService(MATCH_HISTORY_DAO,SINGLE_MODE_SESSION_DAO);
     private static final MatchMakingService MATCHMAKER =
             new MatchMakingService(GAME_SESSION_POOL, HANGMAN_ENGINE_POOL,HANGMAN_ENGINE,LEADERBOARD,MATCH_HISTORY_SERVICE);
-
+    private static final PlayerStatsDAO PLAYER_STATS_DAO=new PlayerStatsDAO(DATA_SOURCE);
+    private static final ProfilePrinter PROFILE_PRINTER=new ProfilePrinter(PLAYER_STATS_DAO);
     private static final Logger serverLogger = Logger.getLogger("GameServer");
 
     public static void main(String[] args) {
@@ -48,7 +51,7 @@ public class GameServer {
                 clientSocket.setSoTimeout(120_000);
                 serverLogger.log(Level.INFO, "Client connected: {0}", clientSocket.getInetAddress().getHostAddress());
                 CLIENT_HANDLER_POOL.execute(
-                        new ClientHandler(clientSocket, MATCHMAKER, GAME_SESSION_POOL,HANGMAN_ENGINE,LEADERBOARD,MATCH_HISTORY_SERVICE));
+                        new ClientHandler(clientSocket, MATCHMAKER, GAME_SESSION_POOL,HANGMAN_ENGINE,LEADERBOARD,MATCH_HISTORY_SERVICE,PROFILE_PRINTER));
             }
         } catch (Exception e) {
             serverLogger.log(Level.SEVERE, "Server crashed", e);

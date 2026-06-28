@@ -51,7 +51,7 @@ public class PlayerStatsDAO {
                         "(username, password_hash, played_count, highest_score, total_score, last_played,total_wins) " +
                         "VALUES (?, ?, 0, 0, 0, ?,0)";
         try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+             PreparedStatement stmt = conn.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS)) {
             stmt.setString(1, username);
             stmt.setString(2, passwordHash);
             stmt.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
@@ -100,13 +100,18 @@ public class PlayerStatsDAO {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
+
+                    int played = rs.getInt("played_count");
+                    int wins   = rs.getInt("total_wins");
+                    double winPct = played > 0 ? ((double) wins / played) * 100 : 0.0;
                     return new PlayerStats(
                             rs.getString("username"),
-                            rs.getInt("played_count"),
+                            played,
                             rs.getInt("highest_score"),
                             rs.getInt("total_score"),
                             rs.getObject("last_played", LocalDateTime.class),
-                            rs.getInt("total_wins")
+                            wins,
+                            winPct
                     );
                 }
             }
@@ -146,7 +151,7 @@ public class PlayerStatsDAO {
         String sql =
                 "SELECT username, played_count, highest_score, total_score, last_played ,total_wins" +
                         " FROM player_stats " +
-                        "ORDER BY total_score DESC, highest_score DESC " +
+                        "ORDER BY total_score DESC, highest_score DESC ,(total_wins*100.0)/played_count DESC " +
                         "LIMIT ?";
         List<PlayerStats> result = new ArrayList<>();
         try (Connection conn = datasource.getConnection();
@@ -154,13 +159,17 @@ public class PlayerStatsDAO {
             stmt.setInt(1, n);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
+                    int played = rs.getInt("played_count");
+                    int wins   = rs.getInt("total_wins");
+                    double winPct = played > 0 ? ((double) wins / played) * 100 : 0.0;
                     result.add(new PlayerStats(
                             rs.getString("username"),
-                            rs.getInt("played_count"),
+                            played,
                             rs.getInt("highest_score"),
                             rs.getInt("total_score"),
                             rs.getObject("last_played", LocalDateTime.class),
-                            rs.getInt("total_wins")
+                            wins,
+                            winPct
                     ));
                 }
             }
