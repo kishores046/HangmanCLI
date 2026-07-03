@@ -30,7 +30,7 @@ A multiplayer terminal-based Hangman game built in Java using raw TCP sockets, t
 - **Player Authentication** — Register with a username and password; returning players log in to preserve their stats
 - **Persistent Stats** — `played_count`, `highest_score`, and `total_score` (cumulative XP) are tracked per player in MySQL
 - **Leaderboard** — Top 5 players ranked by total XP, with highest single-game score as a tiebreaker; viewable from the main menu or shown automatically after every game
-- **Word Categories** — Comic Series, Thriller Movies, Sci-Fi Movies; words fetched randomly from the database
+- **Word Categories** — Characters from Comic Series , Thriller Movies , Sci-Fi Movies; words fetched randomly from the database
 - **Time-based Scoring** — Faster guesses earn bonus points on top of the base accuracy score
 - **ASCII Hangman** — Full 7-frame progressive ASCII art gallows
 
