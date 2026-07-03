@@ -30,7 +30,7 @@ A multiplayer terminal-based Hangman game built in Java using raw TCP sockets, t
 - **Player Authentication** — Register with a username and password; returning players log in to preserve their stats
 - **Persistent Stats** — `played_count`, `highest_score`, and `total_score` (cumulative XP) are tracked per player in MySQL
 - **Leaderboard** — Top 5 players ranked by total XP, with highest single-game score as a tiebreaker; viewable from the main menu or shown automatically after every game
-- **Word Categories** — Characters from Comic Series , Thriller Movies , Sci-Fi Movies; words fetched randomly from the database
+- **Word Categories** — Horror Movies , Thriller Movies , Sci-Fi Movies, Mystery movies, Adventure Movies, Family, Drama etc; words fetched randomly from the database
 - **Time-based Scoring** — Faster guesses earn bonus points on top of the base accuracy score
 - **ASCII Hangman** — Full 7-frame progressive ASCII art gallows
 
@@ -165,9 +165,9 @@ CREATE TABLE words (
     category  VARCHAR(50)  NOT NULL
 );
 
--- Sample categories: 'Comic-Series', 'Thriller-Movies', 'SciFi-Movies'
+-- Sample categories: 'Action', 'Thriller-Movies', 'SciFi-Movies'
 INSERT INTO words (word, category) VALUES
-('batman',        'Comic-Series'),
+('batman',        'Action-Movies'),
 ('inception',     'Thriller-Movies'),
 ('interstellar',  'SciFi-Movies');
 ```
@@ -468,10 +468,11 @@ Account created! Welcome, alice!
 
 Welcome alice! Let's play Hangman.
 Choose your category:
-  1. Comic-Series
+  1. Action-Movies
   2. Thriller-Movies
   3. SciFi-Movies
-Enter 1, 2 or 3:
+  4. Horror-Movies ....
+Enter 1, 2 ,3 or 4 ....:
 > 2
 
    +---+
