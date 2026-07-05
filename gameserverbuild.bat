@@ -5,7 +5,7 @@ rmdir /s /q out
 mkdir out
 
 dir /s /b src\*.java > sources.txt
-javac -cp "src;lib/*" -d out @sources.txt
+javac -cp "lib/*" -d out @sources.txt
 del sources.txt
 
 copy src\resources\*.properties out\

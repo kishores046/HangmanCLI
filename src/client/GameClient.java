@@ -52,7 +52,7 @@ public class GameClient {
                     }
 
                       case "INPUT_CATEGORY" -> {
-                        for (int i = 0; i < 6; i++) System.out.println(in.readLine());
+                        for (int i = 0; i < 17; i++) System.out.println(in.readLine());
                         System.out.print("> ");
                         out.println(sc.nextLine());
                     }
@@ -80,7 +80,7 @@ public class GameClient {
                         System.out.println(serverMessage);
 
                         if (serverMessage.contains("Enter your guess client!:(single character)")) {
-                            System.out.print("Your guess (or type HINT /CHAT:Message): ");
+                            System.out.print("Your guess (or type HINT / PLOTHINT / CHAT:Message): ");
                             String guess = sc.nextLine().trim();
                             out.println(guess.isEmpty() ? " " : guess);
                         }

@@ -93,26 +93,14 @@ public class PlayerStatsDAO {
 
     public PlayerStats getPlayerStats(String username) {
         String sql =
-                "SELECT username, played_count, highest_score, total_score, last_played " +
+                "SELECT username, played_count, highest_score, total_score, last_played, total_wins " +
                         "FROM player_stats WHERE username = ?";
         try (Connection conn = datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-
-                    int played = rs.getInt("played_count");
-                    int wins   = rs.getInt("total_wins");
-                    double winPct = played > 0 ? ((double) wins / played) * 100 : 0.0;
-                    return new PlayerStats(
-                            rs.getString("username"),
-                            played,
-                            rs.getInt("highest_score"),
-                            rs.getInt("total_score"),
-                            rs.getObject("last_played", LocalDateTime.class),
-                            wins,
-                            winPct
-                    );
+                    return buildPlayerStats(rs);
                 }
             }
         } catch (SQLException e) {
@@ -178,4 +166,23 @@ public class PlayerStatsDAO {
         }
         return result;
     }
+
+
+
+    private static PlayerStats buildPlayerStats(ResultSet rs) throws SQLException {
+        int played = rs.getInt("played_count");
+        int wins   = rs.getInt("total_wins");
+        double winPct = played > 0 ? ((double) wins / played) * 100.0 : 0.0;
+
+        return new PlayerStats(
+                rs.getString("username"),
+                played,
+                rs.getInt("highest_score"),
+                rs.getInt("total_score"),
+                rs.getObject("last_played", LocalDateTime.class),
+                wins,
+                winPct
+        );
+    }
 }
+

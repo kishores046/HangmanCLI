@@ -12,6 +12,7 @@ public class LeaderboardPrinter {
     private final PlayerStatsDAO dao;
     private static final int TOP_N = 5;
 
+
     public LeaderboardPrinter(DataSource dataSource) {
         this.dao = new PlayerStatsDAO(dataSource);
     }

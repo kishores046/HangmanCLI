@@ -15,5 +15,6 @@ public class ChatService {
     public synchronized void route(PrintWriter senderOut, String username, String message) {
         PrintWriter recipientOut = (senderOut == out1) ? out2 : out1;
         recipientOut.println("[[CHAT]]" + username + ": " + message);
+        recipientOut.println();
     }
 }
