@@ -1,16 +1,10 @@
 package dao;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
-import util.JDBConnectionManager;
-
+import java.sql.*;
+import java.time.LocalDateTime;
 import javax.sql.DataSource;
 
 public class WordsStatsDAO {
-
 
     private final DataSource dataSource;
 
@@ -18,29 +12,52 @@ public class WordsStatsDAO {
         this.dataSource = dataSource;
     }
 
-    public String getWordUnderGivenCategory(int choice){
-        String sql = "SELECT word FROM words WHERE category=? ORDER BY rand() LIMIT 1";
-        String chosenWord=null;
-        try (Connection conn= dataSource.getConnection();
-             PreparedStatement psmt=conn.prepareStatement(sql)) {
-            String category=getGategoryFromChoice(choice);
-             psmt.setString(1,category);
-             try (ResultSet rs=psmt.executeQuery();) {
-                if(rs.next()){
-                    chosenWord=rs.getString("word");
+    public String getWordUnderGivenCategory(int categoryId) {
+        String sql = "SELECT word FROM words WHERE category_id = ? ORDER BY rand() LIMIT 1";
+        String chosenWord = null;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement psmt = conn.prepareStatement(sql)) {
+            psmt.setInt(1, categoryId);
+            try (ResultSet rs = psmt.executeQuery()) {
+                if (rs.next()) {
+                    chosenWord = rs.getString("word");
                 }
-             } 
+            }
         } catch (SQLException e) {
-            System.out.println("Error occured"+e.getMessage());
+            System.out.println("Error occurred" + e.getMessage());
         }
         return chosenWord;
     }
-    public String getGategoryFromChoice(int choice){
-        return switch(choice){
-            case 1 -> "Comic-Series";
-            case 2 -> "Thriller-Movies";
-            case 3 ->  "SciFi-Movies";
-            default -> "Comic-Series";
-        };
+
+
+
+    public WordEntry getWordEntryUnderCategory(int categoryId) {
+        String sql = "SELECT wordId, word, imdb_id, plot_hint FROM words WHERE category_id = ? ORDER BY rand() LIMIT 1";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement psmt = conn.prepareStatement(sql)) {
+            psmt.setInt(1, categoryId);
+            try (ResultSet rs = psmt.executeQuery()) {
+                if (rs.next()) {
+                    return new WordEntry(rs.getInt("wordId"), rs.getString("word"),
+                            rs.getString("imdb_id"), rs.getString("plot_hint"));
+                }
+            }
+        } catch (SQLException e) {
+            System.out.println("Error occurred" + e.getMessage());
+        }
+        return null;
+    }
+
+    public void savePlotHint(int wordId, String plot) {
+        String sql = "UPDATE words SET plot_hint = ?, hint_fetched_at = ? WHERE wordId = ?";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement psmt = conn.prepareStatement(sql)) {
+            psmt.setString(1, plot);
+            psmt.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now()));
+            psmt.setInt(3, wordId);
+            psmt.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println("Error occurred" + e.getMessage());
+        }
     }
 }
