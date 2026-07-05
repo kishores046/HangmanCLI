@@ -1,9 +1,12 @@
 package util;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dao.WordEntry;
 import dao.WordsStatsDAO;
+import org.jspecify.annotations.NonNull;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -19,8 +22,8 @@ public class OmdbClient {
     private static final String API_KEY = System.getenv("OMDB_API_KEY");
     private static final String BASE_URL = "https://www.omdbapi.com/";
     private static final Logger logger = Logger.getLogger("OmdbClient");
-
-    private static final Cache<String, String> plotCache = Caffeine.newBuilder()
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Cache<@NonNull String, String> plotCache = Caffeine.newBuilder()
             .maximumSize(500)
             .expireAfterWrite(6, TimeUnit.HOURS)
             .build();
@@ -75,12 +78,21 @@ public class OmdbClient {
     }
 
     private static String extractJsonField(String json, String field) {
-        String key = "\"" + field + "\":\"";
-        int start = json.indexOf(key);
-        if (start == -1) return null;
-        start += key.length();
-        int end = json.indexOf("\"", start);
-        return end == -1 ? null : json.substring(start, end);
+        try {
+            JsonNode root = MAPPER.readTree(json);
+            JsonNode responseNode = root.get("Response");
+            if (responseNode != null && "False".equalsIgnoreCase(responseNode.asText())) {
+                logger.log(Level.WARNING, "OMDb API error: {0}", root.path("Error").asText());
+                return null;
+            }
+
+            JsonNode fieldNode = root.get(field);
+            return (fieldNode == null || fieldNode.isNull()) ? null : fieldNode.asText();
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Failed to parse OMDb JSON response", e);
+            return null;
+        }
     }
 
     private static String sanitizePlot(String plot) {
