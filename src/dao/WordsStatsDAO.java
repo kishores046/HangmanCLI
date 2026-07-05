@@ -2,11 +2,14 @@ package dao;
 
 import java.sql.*;
 import java.time.LocalDateTime;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.sql.DataSource;
 
 public class WordsStatsDAO {
 
     private final DataSource dataSource;
+    private static final Logger logger=Logger.getLogger("WordsStatsDAO");
 
     public WordsStatsDAO(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -43,7 +46,7 @@ public class WordsStatsDAO {
                 }
             }
         } catch (SQLException e) {
-            System.out.println("Error occurred" + e.getMessage());
+            logger.log(Level.SEVERE, "Failed to fetch word entry for categoryId: " + categoryId, e);
         }
         return null;
     }
@@ -57,7 +60,7 @@ public class WordsStatsDAO {
             psmt.setInt(3, wordId);
             psmt.executeUpdate();
         } catch (SQLException e) {
-            System.out.println("Error occurred" + e.getMessage());
+            logger.log(Level.SEVERE, "Failed to fetch save plot");
         }
     }
 }

@@ -52,9 +52,12 @@ public class GameClient {
                     }
 
                       case "INPUT_CATEGORY" -> {
-                        for (int i = 0; i < 17; i++) System.out.println(in.readLine());
-                        System.out.print("> ");
-                        out.println(sc.nextLine());
+                          String line;
+                          while (!(line = in.readLine()).equals("CATEGORY_END")) {
+                              System.out.println(line);
+                          }
+                          System.out.print("> ");
+                          out.println(sc.nextLine());
                     }
 
                     case "CHAT_SENT"->{

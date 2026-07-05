@@ -27,7 +27,6 @@ public class HangmanGameEngine {
     private static final int MAX_HINTS=4;
     private static final int PLOT_HINT_PENALTY = 15;
     private static final int MAX_PLOT_HINTS = 1;
-    int plotHintsUsed = 0;
     private static final Logger logger = Logger.getLogger("HangmanGameEngine");
     private final CategoryDAO categoryDAO;
 
@@ -72,6 +71,7 @@ public class HangmanGameEngine {
                 out.println("  " + (i + 1) + ". " + categories.get(i).name());
             }
             out.println("Enter 1-" + categories.size() + ":");
+            out.println("CATEGORY_END");
 
             int choiceIndex = parseChoice(in.readLine(), categories.size()); // 0-based index
             int categoryId = categories.get(choiceIndex).id();
@@ -129,14 +129,11 @@ public class HangmanGameEngine {
                         out.println("No plot hint available for this word.");
                         out.println();
                     } else {
-                        String plot = entry.plotHint();
+                        String plot = OmdbClient.fetchPlotByImdbId(entry.imdbId(), entry, wso);
                         if (plot == null) {
-                            plot = OmdbClient.fetchPlotByImdbId(entry.imdbId(),entry,wso);
-                            out.println("Plot:"+plot);
+                            out.println("Plot hint unavailable right now.");
                             out.println();
-                            if (plot == null) out.println("Plot hint unavailable right now.");
-                        }
-                        else {
+                        } else {
                             plotHintsUsed++;
                             hintPenalty += PLOT_HINT_PENALTY;
                             out.println("Plot hint: " + plot + " (-" + PLOT_HINT_PENALTY + " points)");
