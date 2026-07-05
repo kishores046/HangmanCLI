@@ -1,3 +1,11 @@
+![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![HikariCP](https://img.shields.io/badge/HikariCP-00A86B?style=for-the-badge)
+![Caffeine](https://img.shields.io/badge/Caffeine-6F4E37?style=for-the-badge)
+![TCP Sockets](https://img.shields.io/badge/TCP%20Sockets-00599C?style=for-the-badge)
+![Jackson](https://img.shields.io/badge/Jackson-000000?style=for-the-badge)
+![OMDb API](https://img.shields.io/badge/OMDb%20API-E50914?style=for-the-badge)
+
 # HangmanCLI 🎮
 
 A multiplayer terminal-based Hangman game built entirely in raw Java — no web frameworks. Uses TCP sockets, thread pools, HikariCP, and MySQL. Supports single-player, real-time 1v1 multiplayer matchmaking, persistent player accounts, time-based scoring, in-game chat, plot hints powered by the OMDb API, and a word dataset sourced from IMDb with 14 genre categories.
