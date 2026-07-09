@@ -3,6 +3,7 @@ package client;
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.util.Enumeration;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -23,19 +24,42 @@ public class DiscoveryClient {
             byte[] request =
                     "DISCOVER_SERVICE".getBytes(StandardCharsets.UTF_8);
 
-            InetAddress broadcast =
-                    InetAddress.getByName("255.255.255.255");
+            Enumeration<NetworkInterface> interfaces =
+                    NetworkInterface.getNetworkInterfaces();
 
-            DatagramPacket packet =
-                    new DatagramPacket(
-                            request,
-                            request.length,
-                            broadcast,
-                            DISCOVERY_PORT);
+            while (interfaces.hasMoreElements()) {
 
-            socket.send(packet);
+                NetworkInterface networkInterface =
+                        interfaces.nextElement();
 
-            logger.info("Discovery broadcast sent.");
+                if (!networkInterface.isUp()
+                        || networkInterface.isLoopback()) {
+                    continue;
+                }
+
+                for (InterfaceAddress interfaceAddress :
+                        networkInterface.getInterfaceAddresses()) {
+
+                    InetAddress broadcast =
+                            interfaceAddress.getBroadcast();
+
+                    if (broadcast == null) {
+                        continue;
+                    }
+
+                    DatagramPacket packet =
+                            new DatagramPacket(
+                                    request,
+                                    request.length,
+                                    broadcast,
+                                    DISCOVERY_PORT);
+
+                    socket.send(packet);
+
+                    logger.info("Discovery broadcast sent to "
+                            + broadcast.getHostAddress());
+                }
+            }
 
             byte[] responseBuffer = new byte[1024];
 
@@ -46,7 +70,8 @@ public class DiscoveryClient {
 
             socket.receive(response);
 
-            logger.info("Discovery response received.");
+            logger.info("Discovery response received from "
+                    + response.getAddress().getHostAddress());
 
             String port =
                     new String(
