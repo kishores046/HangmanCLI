@@ -6,15 +6,23 @@ import java.util.Scanner;
 
 public class GameClient {
 
+    private static final DiscoveryClient discoveryClient=new DiscoveryClient();
+
     public static void main(String[] args) {
 
-        try (Socket socket = new Socket("localhost", 8080);
+        ServerDetails serverDetails = discoveryClient.discoverServer();
+
+        if (serverDetails == null) {
+            System.out.println("No Hangman server found on the network.");
+            return;
+        }
+
+
+        try (Socket socket = new Socket(serverDetails.getIpAddress(),serverDetails.getPort());
              PrintWriter out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
              BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
              Scanner sc = new Scanner(System.in)) {
-
             String serverMessage;
-
             outer:
             while ((serverMessage = in.readLine()) != null) {
 
@@ -40,7 +48,7 @@ public class GameClient {
                         out.println(pw);
                     }
 
-                    case "AUTH_SUCCESS" -> {
+                    case "AUTH_SUCCESS", "WAITING" -> {
                         System.out.println(in.readLine());
                     }
 
@@ -51,13 +59,23 @@ public class GameClient {
                         System.out.println("✗  " + in.readLine());
                     }
 
-                      case "INPUT_CATEGORY" -> {
-                          String line;
-                          while (!(line = in.readLine()).equals("CATEGORY_END")) {
-                              System.out.println(line);
-                          }
-                          System.out.print("> ");
-                          out.println(sc.nextLine());
+                    case "INPUT_CATEGORY" -> {
+                        String line;
+
+                        while ((line = in.readLine()) != null && !line.trim().equals("CATEGORY_END")) {
+                            System.out.println(line);
+                        }
+                        System.out.print("> ");
+                        out.println(sc.nextLine());
+                    }
+
+                    case "INPUT_DIFFICULTY" -> {
+                        String line;
+                        while ((line = in.readLine()) != null && !line.trim().equals("DIFFICULTY_END")) {
+                            System.out.println(line);
+                        }
+                        System.out.print("> ");
+                        out.println(sc.nextLine());
                     }
 
                     case "CHAT_SENT"->{
@@ -65,11 +83,6 @@ public class GameClient {
                     }
                     case "INPUT_GUESS" -> {
                         banner("Game started! Good luck!");
-                    }
-
-
-                    case "WAITING" -> {
-                        System.out.println(in.readLine());
                     }
 
 

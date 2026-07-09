@@ -23,7 +23,6 @@ public class HangmanGameEngine {
     private final PlayerStatsDAO dao;
     private final WordsStatsDAO wso;
     private static final AuthenticationService authenticationService = AuthenticationService.getInstance();
-    private static final int MAX_ATTEMPTS = 6;
     private static final int MAX_HINTS=4;
     private static final int PLOT_HINT_PENALTY = 15;
     private static final int MAX_PLOT_HINTS = 1;
@@ -47,7 +46,6 @@ public class HangmanGameEngine {
     }
 
     public PlayerResult run(WaitingPlayer waitingPlayer, BufferedReader in, PrintWriter out, ChatService chatService, ClientDisconnectHandler clientDisconnectHandler) {
-
         int score = 0;
         String username = waitingPlayer.getUsername();
         int hintsUsed = 0;
@@ -72,15 +70,37 @@ public class HangmanGameEngine {
             }
             out.println("Enter 1-" + categories.size() + ":");
             out.println("CATEGORY_END");
-
             int choiceIndex = parseChoice(in.readLine(), categories.size()); // 0-based index
             int categoryId = categories.get(choiceIndex).id();
+            out.println("INPUT_DIFFICULTY");
+            out.println("Choose difficulty:");
+            out.println("  1. Easy");
+            out.println("  2. Medium");
+            out.println("  3. Hard");
+            out.println("Enter 1-3:");
+            out.println("DIFFICULTY_END");
+            String diffChoice = in.readLine();
+            String difficulty = switch (diffChoice == null ? "" : diffChoice.trim()) {
+                case "1" -> "EASY";
+                case "3" -> "HARD";
+                default -> "MEDIUM";
+            };
 
-            WordEntry entry = wso.getWordEntryUnderCategory(categoryId);
-            if (entry == null || entry.word() == null || entry.word().isBlank()) {
-                out.println("No words available for that category. Please try again later.");
-                return new PlayerResult(username, 0, Status.NOTHING, 0, 0);
+            int maxAttempts = switch (difficulty) {
+                case "EASY" -> 8;
+                case "HARD" -> 4;
+                default -> 6;
+            };
+
+            WordEntry entry = wso.getWordEntryUnderCategoryAndDifficulty(categoryId, difficulty);
+            if (entry == null) {
+                entry = wso.getWordEntryUnderCategory(categoryId);
+                if (entry == null || entry.word() == null || entry.word().isBlank()) {
+                    out.println("No words available for that category. Please try again later.");
+                    return new PlayerResult(username, 0, Status.NOTHING, 0, 0);
+                }
             }
+
             String chosenWord = entry.word().toLowerCase().trim();
 
             char[] display = new char[chosenWord.length()];
@@ -92,7 +112,7 @@ public class HangmanGameEngine {
             start = System.nanoTime();
             out.println("INPUT_GUESS");
 
-            while (wrongAttempts < MAX_ATTEMPTS && new String(display).contains("_")) {
+            while (wrongAttempts < maxAttempts && new String(display).contains("_")) {
                 out.println("Guessed so far: " + guessedLetters);
                 out.println();
                 out.println("Enter your guess client!:(single character)");
@@ -158,7 +178,7 @@ public class HangmanGameEngine {
                     out.println();
                     out.println("Word: " + new String(display));
                     out.println();
-                    out.println("Wrong attempts: " + wrongAttempts + "/" + MAX_ATTEMPTS);
+                    out.println("Wrong attempts: " + wrongAttempts + "/" + maxAttempts);
                     out.println();
                     continue;
                 }
@@ -175,14 +195,14 @@ public class HangmanGameEngine {
 
                 out.println("Word: " + new String(display));
                 out.println();
-                out.println("Wrong attempts: " + wrongAttempts + "/" + MAX_ATTEMPTS);
+                out.println("Wrong attempts: " + wrongAttempts + "/" + maxAttempts);
                 out.println();
                 out.println(HANGMAN_FRAMES[wrongAttempts]);
             }
 
             end = System.nanoTime();
             if (new String(display).equals(chosenWord)) {
-                score = calculateScore(wrongAttempts, start, end, hintPenalty);
+                score = calculateScore(wrongAttempts, start, end, hintPenalty,maxAttempts);
                 out.println("Congratulations...");
                 out.println();
                 dao.updatePlayerStats(username, score, 1);
@@ -219,9 +239,9 @@ public class HangmanGameEngine {
         }
     }
 
-    public int calculateScore(int wrongAttempts, long start, long end,int hintPenality) {
+    public int calculateScore(int wrongAttempts, long start, long end,int hintPenality,int maxAttempts) {
         long elapsedSeconds = (end - start) / 1_000_000_000L;
-        return ((MAX_ATTEMPTS - wrongAttempts) * 10) + (int) Math.max(0L, 60L - elapsedSeconds)-hintPenality;
+        return ((maxAttempts - wrongAttempts) * 10) + (int) Math.max(0L, 60L - elapsedSeconds)-hintPenality;
     }
 
 

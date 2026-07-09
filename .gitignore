@@ -1,6 +1,10 @@
 .vscode
 .idea
-bin
-out
 src/resources
 HangManGame.iml
+out/
+bin/
+target/
+build/
+*.class
+*.jar

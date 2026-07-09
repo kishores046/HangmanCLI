@@ -6,6 +6,7 @@ import util.ProfilePrinter;
 
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -76,8 +77,10 @@ public class ClientHandler implements Runnable {
 
             switch (choice.trim()) {
                 case "1" -> {
-
-                    gameSessionExecutor.submit(new SingleModeSession(player,hangmanGameEngine,leaderboardPrinter, matchHistoryService));
+                    gameSessionExecutor.submit(
+                            new SingleModeSession(player, hangmanGameEngine,
+                                    leaderboardPrinter, matchHistoryService,
+                                    reader, writer));
                 }
                 case "2" -> {
                     matchMakingService.enqueue(player);
@@ -106,7 +109,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.log(Level.SEVERE, "ClientHandler error", e);
         }
     }

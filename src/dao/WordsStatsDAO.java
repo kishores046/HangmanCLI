@@ -15,25 +15,6 @@ public class WordsStatsDAO {
         this.dataSource = dataSource;
     }
 
-    public String getWordUnderGivenCategory(int categoryId) {
-        String sql = "SELECT word FROM words WHERE category_id = ? ORDER BY rand() LIMIT 1";
-        String chosenWord = null;
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement psmt = conn.prepareStatement(sql)) {
-            psmt.setInt(1, categoryId);
-            try (ResultSet rs = psmt.executeQuery()) {
-                if (rs.next()) {
-                    chosenWord = rs.getString("word");
-                }
-            }
-        } catch (SQLException e) {
-            System.out.println("Error occurred" + e.getMessage());
-        }
-        return chosenWord;
-    }
-
-
-
     public WordEntry getWordEntryUnderCategory(int categoryId) {
         String sql = "SELECT wordId, word, imdb_id, plot_hint FROM words WHERE category_id = ? ORDER BY rand() LIMIT 1";
         try (Connection conn = dataSource.getConnection();
@@ -51,6 +32,26 @@ public class WordsStatsDAO {
         return null;
     }
 
+
+    public WordEntry getWordEntryUnderCategoryAndDifficulty(int categoryId, String difficulty) {
+        String sql = "SELECT wordId, word, imdb_id, plot_hint FROM words " +
+                "WHERE category_id = ? AND difficulty = ? ORDER BY rand() LIMIT 1";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement psmt = conn.prepareStatement(sql)) {
+            psmt.setInt(1, categoryId);
+            psmt.setString(2, difficulty);
+            try (ResultSet rs = psmt.executeQuery()) {
+                if (rs.next()) {
+                    return new WordEntry(rs.getInt("wordId"), rs.getString("word"),
+                            rs.getString("imdb_id"), rs.getString("plot_hint"));
+                }
+            }
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Failed to fetch word for category " + categoryId + " / " + difficulty, e);
+        }
+        return null;
+    }
+
     public void savePlotHint(int wordId, String plot) {
         String sql = "UPDATE words SET plot_hint = ?, hint_fetched_at = ? WHERE wordId = ?";
         try (Connection conn = dataSource.getConnection();
@@ -63,4 +64,7 @@ public class WordsStatsDAO {
             logger.log(Level.SEVERE, "Failed to fetch save plot");
         }
     }
+
+
+
 }
