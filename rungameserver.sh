@@ -2,5 +2,4 @@
 
 cd "$(dirname "$(realpath "$0")")" || exit 1
 
-java -Dprofile=wsl -cp "out:lib/*" service.GameServer
-
+java -Djava.util.logging.config.file=out/logging.properties -cp "out:lib/*" service.GameServer

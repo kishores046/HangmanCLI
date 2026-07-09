@@ -40,13 +40,21 @@ public class GameServer {
     private static final PlayerStatsDAO PLAYER_STATS_DAO=new PlayerStatsDAO(DATA_SOURCE);
     private static final ProfilePrinter PROFILE_PRINTER=new ProfilePrinter(PLAYER_STATS_DAO);
     private static final Logger serverLogger = Logger.getLogger("GameServer");
-    private static final ExecutorService BROADCAST_POOL=Executors.newFixedThreadPool(1);
     public static void main(String[] args) {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            serverLogger.info("Shutdown signal received — draining pools");
+            CLIENT_HANDLER_POOL.shutdown();
+            GAME_SESSION_POOL.shutdown();
+            HANGMAN_ENGINE_POOL.shutdown();
+            MATCHMAKER.shutdown();
+        }));
          try (ServerSocket serverSocket = new ServerSocket()) {
             SocketAddress address = new InetSocketAddress(8080);
             serverSocket.bind(address);
             serverLogger.log(Level.INFO, "Hangman server running on port 8080");
-             BROADCAST_POOL.execute(new DiscoveryService());
+             Thread discoveryThread = new Thread(new DiscoveryService(), "discovery-thread");
+             discoveryThread.setDaemon(true);
+             discoveryThread.start();
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 clientSocket.setSoTimeout(120_000);
@@ -62,7 +70,6 @@ public class GameServer {
             GAME_SESSION_POOL.shutdown();
             HANGMAN_ENGINE_POOL.shutdown();
             MATCHMAKER.shutdown();
-            BROADCAST_POOL.shutdownNow();
         }
     }
 }

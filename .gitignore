@@ -1,6 +1,5 @@
 .vscode
 .idea
-src/resources
 HangManGame.iml
 out/
 bin/

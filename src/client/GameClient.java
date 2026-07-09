@@ -10,14 +10,17 @@ public class GameClient {
 
     public static void main(String[] args) {
 
-        ServerDetails serverDetails = discoveryClient.discoverServer();
-
+        ServerDetails serverDetails=null;
+        String host=System.getenv("IP_ADDR_SERVER");
+        String port = System.getenv("SERVER_PORT");
+        if(host!=null && port!=null){
+            serverDetails=new ServerDetails(host,port);
+        }
+        else serverDetails = discoveryClient.discoverServer();
         if (serverDetails == null) {
             System.out.println("No Hangman server found on the network.");
             return;
         }
-
-
         try (Socket socket = new Socket(serverDetails.getIpAddress(),serverDetails.getPort());
              PrintWriter out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
              BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));

@@ -8,7 +8,8 @@ import java.util.logging.Logger;
 
 public class PropertyLoaderUtil {
 
-    private static final Logger logger = Logger.getLogger("PropertyLoaderUtil");
+    private static final Logger logger =
+            Logger.getLogger(PropertyLoaderUtil.class.getName());
     private static final String ACTIVE_PROFILE = System.getProperty("profile", "win");
     private static final String CONFIG_FILE    = "/db-" + ACTIVE_PROFILE + "-config.properties";
 
@@ -16,40 +17,22 @@ public class PropertyLoaderUtil {
 
     public static void loadDBProperties(DBConfigProperties dbConfigProperties) {
 
+        dbConfigProperties.setDBUrl(requireEnv("DB_URL"));
+        dbConfigProperties.setDBUser(requireEnv("DB_USER"));
+        dbConfigProperties.setDBPassword(requireEnv("DB_PASSWORD"));
 
-        try (InputStream is = PropertyLoaderUtil.class.getResourceAsStream(CONFIG_FILE)) {
+        logger.info("Database configuration loaded from environment variables.");
 
-            if (is == null) {
-                throw new ExceptionInInitializerError(
-                        "Config file not found: " + CONFIG_FILE +
-                                " | active profile: '" + ACTIVE_PROFILE +
-                                "' (set via -Dprofile=win|wsl, defaults to win)"
-                );
-            }
-
-
-            Properties props = new Properties();
-            props.load(is);
-
-            dbConfigProperties.setDBUrl(require(props, "DB_URL"));
-            dbConfigProperties.setDBUser(require(props, "DB_USER"));
-            dbConfigProperties.setDBPassword(require(props, "DB_PASSWORD"));
-
-            logger.log(Level.INFO, "DB config loaded — profile: {0} | URL: {1}",
-                    new Object[]{ ACTIVE_PROFILE, dbConfigProperties.getDBUrl() });
-
-        } catch (IOException e) {
-            throw new ExceptionInInitializerError(e);
-        }
     }
 
-    private static String require(Properties props, String key) {
-        String value = props.getProperty(key);
+    private static String requireEnv(String key) {
+        String value = System.getenv(key);
+
         if (value == null || value.isBlank()) {
             throw new ExceptionInInitializerError(
-                    "Missing required property '" + key + "' in " + CONFIG_FILE
-            );
+                    "Required environment variable '" + key + "' is missing.");
         }
+
         return value.trim();
     }
 }
