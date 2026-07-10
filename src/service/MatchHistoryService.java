@@ -6,6 +6,7 @@ import dao.SingleModeSessionDAO;
 import model.MatchHistory;
 import model.PlayerResult;
 import model.SinglePlayerSession;
+import service.connection.ClientConnection;
 
 import java.io.PrintWriter;
 import java.time.LocalDateTime;
@@ -27,26 +28,26 @@ public class MatchHistoryService {
      * Fetches and prints the match history for a player.
      * DAO returns the data; this class owns the formatting.
      */
-    public void printMatchHistory(int playerId, String username, PrintWriter out) {
+    public void printMatchHistory(int playerId, String username, ClientConnection clientConnection) {
         List<MatchHistory> history = matchHistoryDAO.getMatchHistory(playerId, DEFAULT_LIMIT);
-        out.println("══════════════════════════════════════════════════════");
-        out.println("  Recent Matches — " + username);
-        out.println("══════════════════════════════════════════════════════");
+        clientConnection.sendMessage("══════════════════════════════════════════════════════");
+        clientConnection.sendMessage("  Recent Matches — " + username);
+        clientConnection.sendMessage("══════════════════════════════════════════════════════");
 
         if (history.isEmpty()) {
-            out.println("  No matches played yet.");
+            clientConnection.sendMessage("  No matches played yet.");
         } else {
             for (MatchHistory m : history) {
                 String outcome = resolveOutcome(m, username);
-                out.printf("  %-4s  %s (%d pts, %ds) vs %s (%d pts, %ds)%n",
+                clientConnection.sendFormatted("  %-4s  %s (%d pts, %ds) vs %s (%d pts, %ds)%n",
                         outcome,
                         m.player1Name(), m.player1Score(), m.player1DurationSeconds(),
                         m.player2Name(), m.player2Score(), m.player2DurationSeconds());
-                out.printf("        %s%n",
+                clientConnection.sendFormatted("        %s%n",
                         m.playedAt().toString().replace("T", " ").substring(0, 16));
             }
         }
-        out.println("══════════════════════════════════════════════════════");
+        clientConnection.sendMessage("══════════════════════════════════════════════════════");
     }
 
     /**
@@ -79,21 +80,21 @@ public class MatchHistoryService {
     }
 
 
-    public void printSinglePlayerHistory(int playerId, String username, PrintWriter out) {
+    public void printSinglePlayerHistory(int playerId, String username, ClientConnection clientConnection) {
         List<SinglePlayerSession> history = singleModeSessionDAO.getHistory(playerId, DEFAULT_LIMIT);
 
-        out.println("══════════════════════════════════════════════════════");
-        out.println("  Solo History — " + username);
-        out.println("══════════════════════════════════════════════════════");
-        out.println("  # │ Result │ Score │ Wrong │ Time  │ Played at");
-        out.println("  ──┼────────┼───────┼───────┼───────┼────────────────");
+        clientConnection.sendMessage("══════════════════════════════════════════════════════");
+        clientConnection.sendMessage("  Solo History — " + username);
+        clientConnection.sendMessage("══════════════════════════════════════════════════════");
+        clientConnection.sendMessage("  # │ Result │ Score │ Wrong │ Time  │ Played at");
+        clientConnection.sendMessage("  ──┼────────┼───────┼───────┼───────┼────────────────");
 
         if (history.isEmpty()) {
-            out.println("  No solo games played yet.");
+            clientConnection.sendMessage("  No solo games played yet.");
         } else {
             int rank = 1;
             for (SinglePlayerSession s : history) {
-                out.printf("  %-1d │ %-6s │ %-5d │ %-5d │ %-5ds │ %s%n",
+                clientConnection.sendFormatted("  %-1d │ %-6s │ %-5d │ %-5d │ %-5ds │ %s%n",
                         rank++,
                         s.won() ? "WIN" : "LOSS",
                         s.score(),
@@ -102,6 +103,6 @@ public class MatchHistoryService {
                         s.playedAt().toString().replace("T", " ").substring(0, 16));
             }
         }
-        out.println("══════════════════════════════════════════════════════");
+        clientConnection.sendMessage("══════════════════════════════════════════════════════");
     }
 }

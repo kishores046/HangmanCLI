@@ -2,6 +2,7 @@ package util;
 
 import dao.PlayerStatsDAO;
 import model.PlayerStats;
+import service.connection.ClientConnection;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
@@ -18,21 +19,21 @@ public class LeaderboardPrinter {
     }
 
 
-    public void print(PrintWriter out) {
+    public void print(ClientConnection clientConnection) {
         List<PlayerStats> top = dao.getTopNPlayers(TOP_N);
 
-        out.println("╔═══╦══════════════╦══════════╦═══════╦══════╦════════╦═════════╗");
-        out.println("║              TOP " + TOP_N + " LEADERBOARD                    ║");
-        out.println("╠═══╬══════════════╬══════════╬═══════╬══════╬════════╬═════════╣");
-        out.println("║ # ║ Username     ║ Total XP ║ Best  ║ Wins ║ Played ║ Win%    ║");
-        out.println("╠═══╬══════════════╬══════════╬═══════╬══════╬════════╬═════════╣");
+        clientConnection.sendMessage("╔═══╦══════════════╦══════════╦═══════╦══════╦════════╦═════════╗");
+         clientConnection.sendMessage("║              TOP " + TOP_N + " LEADERBOARD                    ║");
+         clientConnection.sendMessage("╠═══╬══════════════╬══════════╬═══════╬══════╬════════╬═════════╣");
+         clientConnection.sendMessage("║ # ║ Username     ║ Total XP ║ Best  ║ Wins ║ Played ║ Win%    ║");
+         clientConnection.sendMessage("╠═══╬══════════════╬══════════╬═══════╬══════╬════════╬═════════╣");
 
         if (top.isEmpty()) {
-            out.println("║                  No scores recorded yet.                    ║");
+             clientConnection.sendMessage("║                  No scores recorded yet.                    ║");
         } else {
             for (int i = 0; i < top.size(); i++) {
                 PlayerStats p = top.get(i);
-               out.printf("║ %-1d ║ %-12s ║ %-8d ║ %-5d ║ %-4d ║ %-6d ║ %-6.1f%% ║%n",
+               clientConnection.sendFormatted("║ %-1d ║ %-12s ║ %-8d ║ %-5d ║ %-4d ║ %-6d ║ %-6.1f%% ║%n",
                         i + 1,
                         truncate(p.username(), 12),
                         p.totalScore(),
@@ -42,7 +43,7 @@ public class LeaderboardPrinter {
                         p.winPercentage());
             }
         }
-        out.println("╚═══╩══════════════╩══════════╩═══════╩══════╩════════╩═════════╝");
+         clientConnection.sendMessage("╚═══╩══════════════╩══════════╩═══════╩══════╩════════╩═════════╝");
     }
 
     private static String truncate(String s, int max) {

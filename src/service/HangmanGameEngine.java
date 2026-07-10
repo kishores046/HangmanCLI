@@ -15,6 +15,8 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import dao.WordEntry;
+import service.connection.ClientConnection;
+import service.connection.ClientContext;
 import util.OmdbClient;
 
 public class HangmanGameEngine {
@@ -45,7 +47,7 @@ public class HangmanGameEngine {
         this.categoryDAO = new CategoryDAO(dataSource);
     }
 
-    public PlayerResult run(WaitingPlayer waitingPlayer, BufferedReader in, PrintWriter out, ChatService chatService, ClientDisconnectHandler clientDisconnectHandler) {
+    public PlayerResult run(WaitingPlayer waitingPlayer, ClientConnection clientConnection, ChatService chatService, ClientDisconnectHandler clientDisconnectHandler) {
         int score = 0;
         String username = waitingPlayer.getUsername();
         int hintsUsed = 0;
@@ -58,28 +60,28 @@ public class HangmanGameEngine {
 
             List<Category> categories = categoryDAO.getAllCategories();
             if (categories.isEmpty()) {
-                out.println("No categories configured. Contact server admin.");
+                 clientConnection.sendMessage("No categories configured. Contact server admin.");
                 return new PlayerResult(username, 0, Status.NOTHING, 0, 0);
             }
 
-            out.println("INPUT_CATEGORY");
-            out.println("Welcome " + username + "! Let's play Hangman.");
-            out.println("Choose your category:");
+             clientConnection.sendMessage("INPUT_CATEGORY");
+             clientConnection.sendMessage("Welcome " + username + "! Let's play Hangman.");
+             clientConnection.sendMessage("Choose your category:");
             for (int i = 0; i < categories.size(); i++) {
-                out.println("  " + (i + 1) + ". " + categories.get(i).name());
+                 clientConnection.sendMessage("  " + (i + 1) + ". " + categories.get(i).name());
             }
-            out.println("Enter 1-" + categories.size() + ":");
-            out.println("CATEGORY_END");
-            int choiceIndex = parseChoice(in.readLine(), categories.size()); // 0-based index
+             clientConnection.sendMessage("Enter 1-" + categories.size() + ":");
+             clientConnection.sendMessage("CATEGORY_END");
+            int choiceIndex = parseChoice(clientConnection.receiveMessage(), categories.size()); // 0-based index
             int categoryId = categories.get(choiceIndex).id();
-            out.println("INPUT_DIFFICULTY");
-            out.println("Choose difficulty:");
-            out.println("  1. Easy");
-            out.println("  2. Medium");
-            out.println("  3. Hard");
-            out.println("Enter 1-3:");
-            out.println("DIFFICULTY_END");
-            String diffChoice = in.readLine();
+             clientConnection.sendMessage("INPUT_DIFFICULTY");
+             clientConnection.sendMessage("Choose difficulty:");
+             clientConnection.sendMessage("  1. Easy");
+             clientConnection.sendMessage("  2. Medium");
+             clientConnection.sendMessage("  3. Hard");
+             clientConnection.sendMessage("Enter 1-3:");
+             clientConnection.sendMessage("DIFFICULTY_END");
+            String diffChoice = clientConnection.receiveMessage();
             String difficulty = switch (diffChoice == null ? "" : diffChoice.trim()) {
                 case "1" -> "EASY";
                 case "3" -> "HARD";
@@ -96,7 +98,7 @@ public class HangmanGameEngine {
             if (entry == null) {
                 entry = wso.getWordEntryUnderCategory(categoryId);
                 if (entry == null || entry.word() == null || entry.word().isBlank()) {
-                    out.println("No words available for that category. Please try again later.");
+                     clientConnection.sendMessage("No words available for that category. Please try again later.");
                     return new PlayerResult(username, 0, Status.NOTHING, 0, 0);
                 }
             }
@@ -107,23 +109,23 @@ public class HangmanGameEngine {
             Arrays.fill(display, '_');
             Set<Character> guessedLetters = new HashSet<>();
 
-            out.println(HANGMAN_FRAMES[0]);
-            out.println("Word: " + new String(display));
+             clientConnection.sendMessage(HANGMAN_FRAMES[0]);
+             clientConnection.sendMessage("Word: " + new String(display));
             start = System.nanoTime();
-            out.println("INPUT_GUESS");
+             clientConnection.sendMessage("INPUT_GUESS");
 
             while (wrongAttempts < maxAttempts && new String(display).contains("_")) {
-                out.println("Guessed so far: " + guessedLetters);
-                out.println();
-                out.println("Enter your guess client!:(single character)");
-                out.println();
-                String guessByClient = in.readLine();
+                 clientConnection.sendMessage("Guessed so far: " + guessedLetters);
+                 clientConnection.sendMessage("");
+                 clientConnection.sendMessage("Enter your guess client!:(single character)");
+                 clientConnection.sendMessage("");
+                String guessByClient = clientConnection.receiveMessage();
                 if (guessByClient == null || guessByClient.isBlank()) continue;
 
                 if (guessByClient.trim().equalsIgnoreCase("HINT")) {
                     if (hintsUsed >= MAX_HINTS) {
-                        out.println("No hints remaining!");
-                        out.println();
+                         clientConnection.sendMessage("No hints remaining!");
+                         clientConnection.sendMessage("");
                     } else {
 
                         List<Integer> unrevealed = new ArrayList<>();
@@ -133,31 +135,31 @@ public class HangmanGameEngine {
                         display[idx] = chosenWord.charAt(idx);
                         hintsUsed++;
                         hintPenalty += 5;
-                        out.println("Hint used! (" + hintsUsed + "/" + MAX_HINTS + ") — -5 points penalty");
-                        out.println();
-                        out.println("Word: " + new String(display));
-                        out.println();
+                         clientConnection.sendMessage("Hint used! (" + hintsUsed + "/" + MAX_HINTS + ") — -5 points penalty");
+                         clientConnection.sendMessage("");
+                         clientConnection.sendMessage("Word: " + new String(display));
+                         clientConnection.sendMessage("");
                     }
                     continue;
                 }
 
                 if (guessByClient.trim().equalsIgnoreCase("PLOTHINT")) {
                     if (plotHintsUsed >= MAX_PLOT_HINTS) {
-                        out.println("No plot hints remaining!");
-                        out.println();
+                         clientConnection.sendMessage("No plot hints remaining!");
+                         clientConnection.sendMessage("");
                     } else if (entry.imdbId() == null) {
-                        out.println("No plot hint available for this word.");
-                        out.println();
+                         clientConnection.sendMessage("No plot hint available for this word.");
+                         clientConnection.sendMessage("");
                     } else {
                         String plot = OmdbClient.fetchPlotByImdbId(entry.imdbId(), entry, wso);
                         if (plot == null) {
-                            out.println("Plot hint unavailable right now.");
-                            out.println();
+                             clientConnection.sendMessage("Plot hint unavailable right now.");
+                             clientConnection.sendMessage("");
                         } else {
                             plotHintsUsed++;
                             hintPenalty += PLOT_HINT_PENALTY;
-                            out.println("Plot hint: " + plot + " (-" + PLOT_HINT_PENALTY + " points)");
-                            out.println();
+                             clientConnection.sendMessage("Plot hint: " + plot + " (-" + PLOT_HINT_PENALTY + " points)");
+                             clientConnection.sendMessage("");
                         }
                     }
                     continue;
@@ -166,20 +168,20 @@ public class HangmanGameEngine {
                 if (chatService != null && guessByClient.toUpperCase().startsWith("CHAT:")) {
                     String message = guessByClient.substring(5).trim();
                     if (!message.isBlank()) {
-                        chatService.route(out, username, message);
-                        out.println("CHAT_SENT");
+                        chatService.route(clientConnection, username, message);
+                         clientConnection.sendMessage("CHAT_SENT");
                     }
                     continue;
                 }
                 char guess = Character.toLowerCase(guessByClient.charAt(0));
 
                 if (guessedLetters.contains(guess)) {
-                    out.println("You already guessed '" + guess + "'. Try a different letter.");
-                    out.println();
-                    out.println("Word: " + new String(display));
-                    out.println();
-                    out.println("Wrong attempts: " + wrongAttempts + "/" + maxAttempts);
-                    out.println();
+                     clientConnection.sendMessage("You already guessed '" + guess + "'. Try a different letter.");
+                     clientConnection.sendMessage("");
+                     clientConnection.sendMessage("Word: " + new String(display));
+                     clientConnection.sendMessage("");
+                     clientConnection.sendMessage("Wrong attempts: " + wrongAttempts + "/" + maxAttempts);
+                     clientConnection.sendMessage("");
                     continue;
                 }
                 guessedLetters.add(guess);
@@ -192,32 +194,31 @@ public class HangmanGameEngine {
                     }
                 }
                 if (!found) wrongAttempts++;
-
-                out.println("Word: " + new String(display));
-                out.println();
-                out.println("Wrong attempts: " + wrongAttempts + "/" + maxAttempts);
-                out.println();
-                out.println(HANGMAN_FRAMES[wrongAttempts]);
+                clientConnection.sendMessage("Word: " + new String(display));
+                clientConnection.sendMessage("");
+                clientConnection.sendMessage("Wrong attempts: " + wrongAttempts + "/" + maxAttempts);
+                clientConnection.sendMessage("");
+                clientConnection.sendMessage(HANGMAN_FRAMES[wrongAttempts]);
             }
 
             end = System.nanoTime();
             if (new String(display).equals(chosenWord)) {
                 score = calculateScore(wrongAttempts, start, end, hintPenalty,maxAttempts);
-                out.println("Congratulations...");
-                out.println();
+                 clientConnection.sendMessage("Congratulations...");
+                 clientConnection.sendMessage("");
                 dao.updatePlayerStats(username, score, 1);
                 return new PlayerResult(username, score, Status.WIN, wrongAttempts, (int) ((end - start) / 1_000_000_000L));
             } else {
-                out.println("Sorry...");
-                out.println();
-                out.println("The right word is,"+chosenWord);
-                out.println();
+                 clientConnection.sendMessage("Sorry...");
+                 clientConnection.sendMessage("");
+                 clientConnection.sendMessage("The right word is,"+chosenWord);
+                 clientConnection.sendMessage("");
                 dao.updatePlayerStats(username, 0, 0);
             }
 
         } catch (SocketTimeoutException | SocketException e) {
             logger.log(Level.WARNING, "Client timed out or disconnected: {0}", username);
-            clientDisconnectHandler.handleClientDisconnect(out);
+            clientDisconnectHandler.handleClientDisconnect(clientConnection);
             return new PlayerResult(username, 0, Status.NOTHING, wrongAttempts,
                     (int) ((end - start) / 1_000_000_000L));
         } catch (IOException e) {

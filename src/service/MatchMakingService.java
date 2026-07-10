@@ -1,6 +1,7 @@
 package service;
 
 import model.WaitingPlayer;
+import service.connection.ClientConnection;
 import util.LeaderboardPrinter;
 
 import java.io.IOException;
@@ -41,15 +42,14 @@ public class MatchMakingService {
         matchMakerThread.submit(this::matchMakeWaitingPlayers);
     }
 
-    public void enqueue(WaitingPlayer player) {
+    public void enqueue(WaitingPlayer player, ClientConnection clientConnection) {
         waitingQueue.add(player);
         logger.log(Level.INFO, "Player queued from {0} (queue size: {1})",
                 new Object[]{player.getSocket().getInetAddress().getHostAddress(), waitingQueue.size()});
        try{
-            PrintWriter out=new PrintWriter(new OutputStreamWriter(player.getSocket().getOutputStream()),true);
-            out.println("WAITING");
-            out.println("Waiting for another player...");
-        }catch (IOException e){
+            clientConnection.sendMessage("WAITING");
+            clientConnection.sendMessage("Waiting for another player...");
+        }catch (Exception e){
             logger.log(Level.SEVERE,e.getMessage());
         }
 

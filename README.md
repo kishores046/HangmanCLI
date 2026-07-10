@@ -432,10 +432,10 @@ Builds automatically on save. Force rebuild: `Project → Clean → Clean all pr
 
 ```bash
 # Windows (default profile)
-java -Dprofile=win -cp "out;lib/*" service.GameServer
+java -Dprofile=win -cp "out;lib/*" service.GameTcpServer
 
 # WSL / Linux
-java -Dprofile=wsl -cp "out:lib/*" service.GameServer
+java -Dprofile=wsl -cp "out:lib/*" service.GameTcpServer
 ```
 
 **Start one or more clients:**

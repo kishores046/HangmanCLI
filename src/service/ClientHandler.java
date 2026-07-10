@@ -1,6 +1,8 @@
 package service;
 
 import model.WaitingPlayer;
+import service.connection.ClientConnection;
+import service.connection.ClientContext;
 import util.LeaderboardPrinter;
 import util.ProfilePrinter;
 
@@ -22,11 +24,11 @@ public class ClientHandler implements Runnable {
     private static final AuthenticationService authenticationService=AuthenticationService.getInstance();
     private final ProfilePrinter profilePrinter;
     private static final Logger logger = Logger.getLogger("ClientHandler");
-
+    private final ClientConnection clientConnection;
     public ClientHandler(Socket socket,
                          MatchMakingService matchMakingService,
                          ExecutorService gameSessionExecutor,
-                         HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter, MatchHistoryService matchHistoryDao, ProfilePrinter profilePrinter) {
+                         HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter, MatchHistoryService matchHistoryDao, ProfilePrinter profilePrinter, ClientConnection clientConnection) {
         this.socket = socket;
         this.hangmanGameEngine=hangmanGameEngine;
         this.matchMakingService = matchMakingService;
@@ -34,42 +36,35 @@ public class ClientHandler implements Runnable {
         this.leaderboardPrinter = leaderboardPrinter;
         this.matchHistoryService =matchHistoryDao;
         this.profilePrinter=profilePrinter;
-
+        this.clientConnection = clientConnection;
     }
 
     @Override
     public void run() {
         try {
-            BufferedReader reader =
-                    new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter writer =
-                    new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
-
-
-            writer.println("INPUT_USERNAME");
-            String username = reader.readLine();
+            clientConnection.sendMessage("INPUT_USERNAME");
+            String username = clientConnection.receiveMessage();
             if (username == null || username.isBlank()) {
-                writer.println("Invalid username. Disconnecting.");
-                writer.println("Ended");
+                clientConnection.sendMessage("Invalid username. Disconnecting.");
+                clientConnection.sendMessage("Ended");
                 return;
             }
-            WaitingPlayer player = new WaitingPlayer(socket, username.trim(), -1);
-            boolean authOk = authenticationService.handleAuth(player, username,reader, writer);
+            WaitingPlayer player = new WaitingPlayer(socket,username.trim(), -1,clientConnection);
+            boolean authOk = authenticationService.handleAuth(player, username,clientConnection);
             if (!authOk) {
-                writer.println("Ended");
+                clientConnection.sendMessage("Ended");
                 return;
             }
-
-            writer.println("INPUT_MODE");
-            writer.println("Choose mode");
-            writer.println("1: Single Player");
-            writer.println("2: Multi Player ");
-            writer.println("3: LeaderBoard  ");
-            writer.println("4: Match History");
-            writer.println("5: Solo History");
-            writer.println("6: Player Profile");
-            writer.println("Enter your choice ");
-            String choice = reader.readLine();
+            clientConnection.sendMessage("INPUT_MODE");
+            clientConnection.sendMessage("Choose mode");
+            clientConnection.sendMessage("1: Single Player");
+            clientConnection.sendMessage("2: Multi Player ");
+            clientConnection.sendMessage("3: LeaderBoard  ");
+            clientConnection.sendMessage("4: Match History");
+            clientConnection.sendMessage("5: Solo History");
+            clientConnection.sendMessage("6: Player Profile");
+            clientConnection.sendMessage("Enter your choice ");
+            String choice = clientConnection.receiveMessage();
             if (choice == null) {
                 logger.log(Level.WARNING, "Client disconnected before sending a choice");
                 return;
@@ -80,32 +75,32 @@ public class ClientHandler implements Runnable {
                     gameSessionExecutor.submit(
                             new SingleModeSession(player, hangmanGameEngine,
                                     leaderboardPrinter, matchHistoryService,
-                                    reader, writer));
+                                    clientConnection));
                 }
                 case "2" -> {
-                    matchMakingService.enqueue(player);
+                    matchMakingService.enqueue(player,clientConnection);
                 }
                 case "3" -> {
-                    leaderboardPrinter.print(writer);
-                    writer.println("Ended");
+                    leaderboardPrinter.print(clientConnection);
+                    clientConnection.sendMessage("Ended");
                 }
                 case "4" -> {
                     matchHistoryService.printMatchHistory(
-                            player.getId(), player.getUsername(), writer);
-                    writer.println("Ended");
+                            player.getId(), player.getUsername(), clientConnection);
+                    clientConnection.sendMessage("Ended");
                 }
                 case "5" -> {
                     matchHistoryService.printSinglePlayerHistory(
-                            player.getId(), player.getUsername(), writer);
-                    writer.println("Ended");
+                            player.getId(), player.getUsername(), clientConnection);
+                    clientConnection.sendMessage("Ended");
                 }
                 case "6"->{
-                    profilePrinter.printPlayerProfile(player.getUsername(), writer);
-                    writer.println("Ended");
+                    profilePrinter.printPlayerProfile(player.getUsername(), clientConnection);
+                    clientConnection.sendMessage("Ended");
                 }
                 default -> {
-                    writer.println("Invalid choice. Disconnecting.");
-                    writer.println("Ended");
+                    clientConnection.sendMessage("Invalid choice. Disconnecting.");
+                    clientConnection.sendMessage("Ended");
                 }
             }
 

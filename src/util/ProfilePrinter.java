@@ -2,6 +2,7 @@ package util;
 
 import dao.PlayerStatsDAO;
 import model.PlayerStats;
+import service.connection.ClientConnection;
 
 import java.io.PrintWriter;
 
@@ -14,11 +15,11 @@ public class ProfilePrinter {
     }
 
 
-    public void printPlayerProfile(String username, PrintWriter out) {
+    public void printPlayerProfile(String username, ClientConnection clientConnection) {
         PlayerStats stats = playerStatsDAO.getPlayerStats(username);
 
         if (stats == null) {
-            out.println("Profile not found for: " + username);
+            clientConnection.sendMessage("Profile not found for: " + username);
             return;
         }
 
@@ -26,18 +27,18 @@ public class ProfilePrinter {
                 ? stats.lastPlayed().toString().replace("T", " ").substring(0, 16)
                 : "Never";
 
-        out.println("╔══════════════════════════════════════════╗");
-        out.println("║             PLAYER PROFILE               ║");
-        out.println("╠══════════════════════════════════════════╣");
-        out.printf( "║  %-14s : %-21s ║%n", "Username",    truncate(stats.username(), 21));
-        out.println("╠══════════════════════════════════════════╣");
-        out.printf( "║  %-14s : %-21d ║%n", "Games Played", stats.playedCount());
-        out.printf( "║  %-14s : %-21d ║%n", "Total XP",     stats.totalScore());
-        out.printf( "║  %-14s : %-21d ║%n", "Best Score",   stats.highestScore());
-        out.printf( "║  %-14s : %-21d ║%n", "Total Wins",   stats.totalWins());
-        out.printf( "║  %-14s : %-20.1f%% ║%n", "Win Rate",  stats.winPercentage());
-        out.printf( "║  %-14s : %-21s ║%n", "Last Played",  lastPlayed);
-        out.println("╚══════════════════════════════════════════╝");
+        clientConnection.sendMessage("╔══════════════════════════════════════════╗");
+        clientConnection.sendMessage("║             PLAYER PROFILE               ║");
+        clientConnection.sendMessage("╠══════════════════════════════════════════╣");
+        clientConnection.sendFormatted( "║  %-14s : %-21s ║%n", "Username",    truncate(stats.username(), 21));
+        clientConnection.sendMessage("╠══════════════════════════════════════════╣");
+        clientConnection.sendFormatted( "║  %-14s : %-21d ║%n", "Games Played", stats.playedCount());
+        clientConnection.sendFormatted( "║  %-14s : %-21d ║%n", "Total XP",     stats.totalScore());
+        clientConnection.sendFormatted( "║  %-14s : %-21d ║%n", "Best Score",   stats.highestScore());
+        clientConnection.sendFormatted( "║  %-14s : %-21d ║%n", "Total Wins",   stats.totalWins());
+        clientConnection.sendFormatted( "║  %-14s : %-20.1f%% ║%n", "Win Rate",  stats.winPercentage());
+        clientConnection.sendFormatted( "║  %-14s : %-21s ║%n", "Last Played",  lastPlayed);
+        clientConnection.sendMessage("╚══════════════════════════════════════════╝");
     }
 
     private static String truncate(String s, int max) {

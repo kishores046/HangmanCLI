@@ -2,12 +2,9 @@ package service;
 
 import model.PlayerResult;
 import model.WaitingPlayer;
+import service.connection.ClientConnection;
 import util.LeaderboardPrinter;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
@@ -25,92 +22,140 @@ public class GameSession implements Session {
 
     public GameSession(WaitingPlayer waitingPlayer1,
                        WaitingPlayer waitingPlayer2,
-                       ExecutorService hangmanEngineExecutor, HangmanGameEngine hangmanGameEngine, LeaderboardPrinter leaderboardPrinter, MatchHistoryService matchHistoryService) {
+                       ExecutorService hangmanEngineExecutor,
+                       HangmanGameEngine hangmanGameEngine,
+                       LeaderboardPrinter leaderboardPrinter,
+                       MatchHistoryService matchHistoryService) {
+
         this.waitingPlayer1 = waitingPlayer1;
         this.waitingPlayer2 = waitingPlayer2;
         this.hangmanEngineExecutor = hangmanEngineExecutor;
-        this.hangmanGameEngine=hangmanGameEngine;
+        this.hangmanGameEngine = hangmanGameEngine;
         this.leaderboardPrinter = leaderboardPrinter;
-        this.matchHistoryService=matchHistoryService;
+        this.matchHistoryService = matchHistoryService;
     }
 
     @Override
     public void run() {
-        try(PrintWriter out1 = new PrintWriter(waitingPlayer1.getSocket().getOutputStream(), true);
-            PrintWriter out2 = new PrintWriter(waitingPlayer2.getSocket().getOutputStream(), true);
-            BufferedReader in1 = new BufferedReader(new InputStreamReader(waitingPlayer1.getSocket().getInputStream()));
-            BufferedReader in2 = new BufferedReader(new InputStreamReader(waitingPlayer2.getSocket().getInputStream()));
-        ) {
 
-            out1.println("MATCH_FOUND");
-            out1.println("Opponent found! Starting game...");
-            out2.println("MATCH_FOUND");
-            out2.println("Opponent found! Starting game...");
+        ClientConnection player1 = waitingPlayer1.getClientConnection();
+        ClientConnection player2 = waitingPlayer2.getClientConnection();
 
-            ChatService chatService=new ChatService(out1,out2);
-            ClientDisconnectHandler clientDisconnectHandler=new ClientDisconnectHandler(out1,out2);
+        try {
+
+            player1.sendMessage("MATCH_FOUND");
+            player1.sendMessage("Opponent found! Starting game...");
+
+            player2.sendMessage("MATCH_FOUND");
+            player2.sendMessage("Opponent found! Starting game...");
+
+            ChatService chatService =
+                    new ChatService(player1, player2);
+
+            ClientDisconnectHandler disconnectHandler =
+                    new ClientDisconnectHandler(player1, player2);
+
             CompletableFuture<PlayerResult> future1 =
                     CompletableFuture.supplyAsync(
-                            () -> hangmanGameEngine.run(waitingPlayer1,in1,out1,chatService,clientDisconnectHandler), hangmanEngineExecutor);
+                            () -> hangmanGameEngine.run(
+                                    waitingPlayer1,
+                                    player1,
+                                    chatService,
+                                    disconnectHandler),
+                            hangmanEngineExecutor);
 
             CompletableFuture<PlayerResult> future2 =
                     CompletableFuture.supplyAsync(
-                            () -> hangmanGameEngine.run(waitingPlayer2,in2,out2,chatService,clientDisconnectHandler), hangmanEngineExecutor);
+                            () -> hangmanGameEngine.run(
+                                    waitingPlayer2,
+                                    player2,
+                                    chatService,
+                                    disconnectHandler),
+                            hangmanEngineExecutor);
 
             PlayerResult result1 = future1.join();
             PlayerResult result2 = future2.join();
 
-            if(clientDisconnectHandler.isDisconnected())return;
+            if (disconnectHandler.isDisconnected()) {
+                return;
+            }
 
             if (result1.score() > result2.score()) {
-                announceResult(out1, result1, "YOU WIN!",    out2, result2, "YOU LOSE!");
-                matchHistoryService.saveMatch(waitingPlayer1.getId(), waitingPlayer2.getId(), waitingPlayer1.getId(),           // winner = p1
-                        result1.score(), result2.score(),
-                        result1.secondsTaken(), result2.secondsTaken(),
-                        "player1_win");
-            } else if (result1.score() < result2.score()) {
-                announceResult(out2, result2, "YOU WIN!",    out1, result1, "YOU LOSE!");
-                matchHistoryService.saveMatch(waitingPlayer1.getId(), waitingPlayer2.getId(), waitingPlayer2.getId(),           // winner = p2
-                        result1.score(), result2.score(),
-                        result1.secondsTaken(), result2.secondsTaken(),
-                        "player2_win");
-            } else {
-                announceResult(out1, result1, "MATCH DRAWN!", out2, result2, "MATCH DRAWN!");
-                matchHistoryService.saveMatch(waitingPlayer1.getId(), waitingPlayer2.getId(), null,
-                        result1.score(), result2.score(),
-                        result1.secondsTaken(), result2.secondsTaken(),
-                        "draw");
 
+                announceResult(
+                        player1, result1, "YOU WIN!",
+                        player2, result2, "YOU LOSE!");
+
+                matchHistoryService.saveMatch(
+                        waitingPlayer1.getId(),
+                        waitingPlayer2.getId(),
+                        waitingPlayer1.getId(),
+                        result1.score(),
+                        result2.score(),
+                        result1.secondsTaken(),
+                        result2.secondsTaken(),
+                        "player1_win");
+
+            } else if (result1.score() < result2.score()) {
+
+                announceResult(
+                        player2, result2, "YOU WIN!",
+                        player1, result1, "YOU LOSE!");
+
+                matchHistoryService.saveMatch(
+                        waitingPlayer1.getId(),
+                        waitingPlayer2.getId(),
+                        waitingPlayer2.getId(),
+                        result1.score(),
+                        result2.score(),
+                        result1.secondsTaken(),
+                        result2.secondsTaken(),
+                        "player2_win");
+
+            } else {
+
+                announceResult(
+                        player1, result1, "MATCH DRAWN!",
+                        player2, result2, "MATCH DRAWN!");
+
+                matchHistoryService.saveMatch(
+                        waitingPlayer1.getId(),
+                        waitingPlayer2.getId(),
+                        null,
+                        result1.score(),
+                        result2.score(),
+                        result1.secondsTaken(),
+                        result2.secondsTaken(),
+                        "draw");
             }
-           leaderboardPrinter.print(out1);
-            out1.println("Ended");
-            leaderboardPrinter.print(out2);
-            out2.println("Ended");
-        } catch (IOException e) {
-            logger.log(Level.SEVERE, "Failed to send match result", e);
+
+            leaderboardPrinter.print(player1);
+            player1.sendMessage("Ended");
+
+            leaderboardPrinter.print(player2);
+            player2.sendMessage("Ended");
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Failed to execute game session", e);
         }
     }
 
-    /**
-     * Sends the full result block to both players.
-     *
-     * @param winnerOut    writer for the player who won (or drew)
-     * @param winnerResult their result
-     * @param winnerMsg    e.g. "YOU WIN!" or "MATCH DRAWN!"
-     * @param loserOut     writer for the other player
-     * @param loserResult  their result
-     * @param loserMsg     e.g. "YOU LOSE!" or "MATCH DRAWN!"
-     */
-    private void announceResult(PrintWriter winnerOut, PlayerResult winnerResult, String winnerMsg,
-                                PrintWriter loserOut,  PlayerResult loserResult,  String loserMsg) {
-        winnerOut.println("MATCH OVER");
-        winnerOut.println("Your Score: "     + winnerResult.score());
-        winnerOut.println("Opponent Score: " + loserResult.score());
-        winnerOut.println(winnerMsg);
+    private void announceResult(
+            ClientConnection winner,
+            PlayerResult winnerResult,
+            String winnerMsg,
+            ClientConnection loser,
+            PlayerResult loserResult,
+            String loserMsg) {
 
-        loserOut.println("MATCH OVER");
-        loserOut.println("Your Score: "     + loserResult.score());
-        loserOut.println("Opponent Score: " + winnerResult.score());
-        loserOut.println(loserMsg);
+        winner.sendMessage("MATCH OVER");
+        winner.sendMessage("Your Score: " + winnerResult.score());
+        winner.sendMessage("Opponent Score: " + loserResult.score());
+        winner.sendMessage(winnerMsg);
+
+        loser.sendMessage("MATCH OVER");
+        loser.sendMessage("Your Score: " + loserResult.score());
+        loser.sendMessage("Opponent Score: " + winnerResult.score());
+        loser.sendMessage(loserMsg);
     }
 }

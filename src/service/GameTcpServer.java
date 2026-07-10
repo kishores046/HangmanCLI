@@ -4,11 +4,18 @@ import dao.MatchHistoryDAO;
 
 import dao.PlayerStatsDAO;
 import dao.SingleModeSessionDAO;
+import service.connection.ClientConnection;
+import service.connection.ClientContext;
+import service.connection.TcpConnection;
 import util.HikariConnectionManager;
 import util.LeaderboardPrinter;
 import util.ProfilePrinter;
 
 import javax.sql.DataSource;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -18,7 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class GameServer {
+public class GameTcpServer {
 
     private static final ExecutorService CLIENT_HANDLER_POOL =
             Executors.newFixedThreadPool(12);
@@ -59,8 +66,14 @@ public class GameServer {
                 Socket clientSocket = serverSocket.accept();
                 clientSocket.setSoTimeout(120_000);
                 serverLogger.log(Level.INFO, "Client connected: {0}", clientSocket.getInetAddress().getHostAddress());
+                BufferedReader reader =
+                        new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                PrintWriter writer =
+                        new PrintWriter(new OutputStreamWriter(clientSocket.getOutputStream()), true);
+
+                ClientConnection clientConnection=new TcpConnection(new ClientContext(writer,reader));
                 CLIENT_HANDLER_POOL.execute(
-                        new ClientHandler(clientSocket, MATCHMAKER, GAME_SESSION_POOL,HANGMAN_ENGINE,LEADERBOARD,MATCH_HISTORY_SERVICE,PROFILE_PRINTER));
+                        new ClientHandler(clientSocket, MATCHMAKER, GAME_SESSION_POOL,HANGMAN_ENGINE,LEADERBOARD,MATCH_HISTORY_SERVICE,PROFILE_PRINTER,clientConnection));
             }
         } catch (Exception e) {
             serverLogger.log(Level.SEVERE, "Server crashed", e);
