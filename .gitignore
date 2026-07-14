@@ -4,6 +4,7 @@ HangManGame.iml
 out/
 bin/
 target/
+META-INF/
 build/
 *.class
 *.jar
