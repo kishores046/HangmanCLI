@@ -2,13 +2,11 @@ package service;
 
 import model.WaitingPlayer;
 import service.connection.ClientConnection;
-import service.connection.ClientContext;
 import util.LeaderboardPrinter;
 import util.ProfilePrinter;
 
 import java.io.*;
 import java.net.Socket;
-import java.net.SocketException;
 import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;

@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Main-Class: GameClient
+Created-By: 21.0.9 (Eclipse Adoptium)
+

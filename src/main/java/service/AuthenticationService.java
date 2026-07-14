@@ -7,8 +7,6 @@ import util.HikariConnectionManager;
 import util.PasswordUtil;
 
 import javax.sql.DataSource;
-import java.io.BufferedReader;
-import java.io.PrintWriter;
 
 public class AuthenticationService {
 

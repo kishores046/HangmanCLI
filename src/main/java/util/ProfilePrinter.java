@@ -4,8 +4,6 @@ import dao.PlayerStatsDAO;
 import model.PlayerStats;
 import service.connection.ClientConnection;
 
-import java.io.PrintWriter;
-
 public class ProfilePrinter {
 
     private final PlayerStatsDAO playerStatsDAO;

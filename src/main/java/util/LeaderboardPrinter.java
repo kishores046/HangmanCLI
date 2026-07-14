@@ -5,7 +5,6 @@ import model.PlayerStats;
 import service.connection.ClientConnection;
 
 import javax.sql.DataSource;
-import java.io.PrintWriter;
 import java.util.List;
 
 public class LeaderboardPrinter {

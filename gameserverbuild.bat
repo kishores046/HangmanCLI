@@ -1,13 +1,13 @@
 @echo off
-cd /d "%~dp0"
+setlocal
 
-rmdir /s /q out
-mkdir out
+cd /d "%~dp0" || exit /b 1
 
-dir /s /b src\*.java > sources.txt
-javac -cp "lib/*" -d out @sources.txt
-del sources.txt
+call mvn clean package
 
-copy src\resources\*.properties out\
+if %ERROR LEVEL% neq 0 (
+    echo Build failed.
+    exit /b %ERRORLEVEL%
+)
 
 echo Build completed successfully.

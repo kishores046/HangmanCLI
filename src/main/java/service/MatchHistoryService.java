@@ -2,14 +2,11 @@ package service;
 
 import dao.MatchHistoryDAO;
 import dao.SingleModeSessionDAO;
-import dao.SingleModeSessionDAO;
 import model.MatchHistory;
 import model.PlayerResult;
 import model.SinglePlayerSession;
 import service.connection.ClientConnection;
 
-import java.io.PrintWriter;
-import java.time.LocalDateTime;
 import java.util.List;
 
 public class MatchHistoryService {

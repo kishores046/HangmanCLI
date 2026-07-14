@@ -1,4 +1,14 @@
 @echo off
-cd /d "%~dp0"
+setlocal
 
-java -Djava.util.logging.config.file=out/logging.properties -cp "out;lib/*" service.GameTcpServer
+cd /d "%~dp0" || exit /b 1
+
+java ^
+-Djava.util.logging.config.file=target\classes\logging.properties ^
+-cp "target\classes;target\dependency\*" ^
+service.GameTcpServer
+
+if %ERROR LEVEL% neq 0 (
+    echo Server exited with an error.
+    exit /b %ERROR LEVEL%
+)

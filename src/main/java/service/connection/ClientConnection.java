@@ -1,7 +1,5 @@
 package service.connection;
 
-import model.PlayerStats;
-
 import java.io.IOException;
 
 public interface ClientConnection {

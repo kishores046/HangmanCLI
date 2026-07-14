@@ -2,8 +2,6 @@ package service;
 
 import service.connection.ClientConnection;
 
-import java.io.PrintWriter;
-
 public class ChatService {
 
     private final ClientConnection player1;

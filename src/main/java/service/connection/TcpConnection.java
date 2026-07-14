@@ -1,7 +1,5 @@
 package service.connection;
 
-import model.PlayerStats;
-
 import java.io.IOException;
 
 public class TcpConnection implements ClientConnection{

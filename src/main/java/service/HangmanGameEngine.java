@@ -16,7 +16,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import dao.WordEntry;
 import service.connection.ClientConnection;
-import service.connection.ClientContext;
 import util.OmdbClient;
 
 public class HangmanGameEngine {
