@@ -9,7 +9,7 @@ RUN mvn clean package
 EXPOSE 8080
 EXPOSE 8888/udp
 
-CMD ["java",
+ENTRYPOINT ["java",
      "-Djava.util.logging.config.file=target/classes/logging.properties",
      "-cp",
      "target/classes:target/dependency/*",
