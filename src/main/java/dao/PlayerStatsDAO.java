@@ -72,22 +72,46 @@ public class PlayerStatsDAO {
     /**
      * Verifies a login attempt. Returns true if credentials match.
      */
-    public int authenticate(String username, String plaintextPassword) {
+    public int authenticate(String username, String plainPassword) {
         String sql = "SELECT id, password_hash FROM player_stats WHERE username = ?";
         try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    boolean match =PasswordUtil.verify(plaintextPassword, rs.getString("password_hash"));
-                    return match ?rs.getInt(1):-1;
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return -1;
+
+                int id = rs.getInt("id");
+                String storedHash = rs.getString("password_hash");
+                boolean isLegacyHash = !storedHash.startsWith("$2");
+
+                boolean valid = isLegacyHash
+                        ? PasswordUtil.sha256(plainPassword).equals(storedHash)
+                        : PasswordUtil.verify(plainPassword, storedHash);
+
+                if (!valid) return -1;
+
+                if (isLegacyHash) {
+                    String newHash = PasswordUtil.hash(plainPassword);
+                    updatePasswordHash(id, newHash);
                 }
-                return -1;
+
+                return id;
             }
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, "Failed to authenticate: " + username, e);
+            throw new RuntimeException(e);
         }
-        return -1;
+    }
+
+    private void updatePasswordHash(int id, String newHash) {
+        String sql = "UPDATE player_stats SET password_hash = ? WHERE id = ?";
+        try (Connection conn = datasource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newHash);
+            ps.setInt(2, id);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to migrate password hash for id " + id, e);
+        }
     }
 
 
