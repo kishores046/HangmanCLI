@@ -33,7 +33,7 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: "3306"
-      DB_URL: jdbc:mysql://${DB_HOST}:${DB_PORT}/${MYSQL_DATABASE}
+      DB_URL: jdbc:mysql://db:3306/${MYSQL_DATABASE}
       DB_NAME: ${MYSQL_DATABASE}
       DB_USER: ${MYSQL_USER}
       DB_PASSWORD: ${MYSQL_PASSWORD}
