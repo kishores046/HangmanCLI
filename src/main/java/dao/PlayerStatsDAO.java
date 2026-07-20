@@ -45,13 +45,14 @@ public class PlayerStatsDAO {
      * Registers a brand-new player with a hashed password.
      * Returns false if the username was already taken (race condition guard).
      */
+
     public int registerPlayer(String username, String passwordHash) {
         String sql =
                 "INSERT INTO player_stats " +
-                        "(username, password_hash, played_count, highest_score, total_score, last_played,total_wins) " +
-                        "VALUES (?, ?, 0, 0, 0, ?,0)";
+                        "(username, password_hash, played_count, highest_score, total_score, last_played, total_wins) " +
+                        "VALUES (?, ?, 0, 0, 0, ?, 0)";
         try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS)) {
+             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setString(1, username);
             stmt.setString(2, passwordHash);
             stmt.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
@@ -61,10 +62,11 @@ public class PlayerStatsDAO {
             }
         } catch (SQLIntegrityConstraintViolationException e) {
             logger.log(Level.WARNING, "Username already taken (race): " + username);
-
+            return -1; // genuine duplicate — keep this message as-is
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, "Failed to register player: " + username, e);
-
+            logger.log(Level.SEVERE, "Registration failed for username '" + username
+                    + "' — SQLState=" + e.getSQLState() + ", ErrorCode=" + e.getErrorCode(), e);
+            throw new RuntimeException("Registration failed due to a database error", e);
         }
         return -1;
     }

@@ -234,7 +234,7 @@ resources/
 └── db-wsl-config.properties            # WSL/Linux credentials   — gitignored
 
 init/
-└── 01-schema.sql                       # Full schema — used by Docker entrypoint
+└── 01-01-schema.sql                       # Full schema — used by Docker entrypoint
 ```
 
 ---
@@ -366,7 +366,7 @@ Right-click project → Build Path → Configure Build Path
 **3. Create the database and schema**
 
 ```bash
-mysql -u root -p < init/01-schema.sql
+mysql -u root -p < init/01-01-schema.sql
 ```
 
 ---

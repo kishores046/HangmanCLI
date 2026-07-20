@@ -12,7 +12,6 @@ public class PropertyLoaderUtil {
         dbConfigProperties.setDBUrl(requireEnv("DB_URL"));
         dbConfigProperties.setDBUser(requireEnv("DB_USER"));
         dbConfigProperties.setDBPassword(requireEnv("DB_PASSWORD"));
-
         logger.info("Database configuration loaded from environment variables.");
 
     }
