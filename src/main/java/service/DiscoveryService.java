@@ -12,7 +12,7 @@ public class DiscoveryService implements Runnable {
     private static final Logger logger =
             Logger.getLogger(DiscoveryService.class.getName());
 
-    private static final int DISCOVERY_PORT = 8888;
+    private static final int DISCOVERY_PORT = 8088;
     private static final int SERVER_PORT = 8080;
 
     @Override
