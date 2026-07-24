@@ -39,7 +39,7 @@ cp .env.example .env    # fill in your OMDb API key and DB credentials
 docker compose up --build
 ```
 
-The client (`HangmanClient`) lives in its own repository — see [HangmanClient](https://github.com/<your-username>/HangmanClient) for build/run instructions. It connects to this server either via LAN auto-discovery (UDP) or by pointing directly at the server's public IP.
+The client (`HangmanClient`) lives in its own repository — see [HangmanClient](https://github.com/kishores046/HangmanClient) for build/run instructions. It connects to this server either via LAN auto-discovery (UDP) or by pointing directly at the server's public IP.
 
 > **Production server:** the hosted instance runs on an AWS EC2 instance behind a static Elastic IP, so clients connecting over the internet should use that address directly rather than relying on LAN discovery, which only works on the same local network as the server.
 
@@ -822,39 +822,37 @@ This rewards accuracy, speed, and efficient use of hints.
 ---
 
 ## Multiplayer Session
-
 The multiplayer system runs both players simultaneously, each with an independent game engine. The final winner is determined after both engines complete.
 
 ```mermaid
 flowchart LR
-
+ 
 Player1 --> GameSession
-
+ 
 Player2 --> GameSession
-
+ 
 GameSession --> Future1["CompletableFuture<PlayerResult>"]
-
+ 
 GameSession --> Future2["CompletableFuture<PlayerResult>"]
-
+ 
 Future1 --> Engine1[HangmanGameEngine]
-
+ 
 Future2 --> Engine2[HangmanGameEngine]
-
+ 
 Engine1 --> Compare[Compare Results]
-
+ 
 Engine2 --> Compare
-
+ 
 Compare --> Winner[Determine Winner]
-
-Winner --> Database
-
-Winner --> Leaderboard
-
-Winner --> Match History
+ 
+Winner --> Database[(Database)]
+ 
+Winner --> Leaderboard[Leaderboard]
+ 
+Winner --> MatchHistory[Match History]
 ```
-
+ 
 ---
-
 ## Chat Service
 
 Real-time chat during multiplayer games, reusing the existing TCP connection — no additional sockets or protocols needed.
@@ -972,7 +970,7 @@ java -jar target/HangmanServer.jar
 
 **5. Run the Client**
 
-The client is maintained as a separate project — clone and build [HangmanClient](https://github.com/<your-username>/HangmanClient) and run it, pointing it at this server's IP and port (`SERVER_PORT` above, `8080` by default).
+The client is maintained as a separate project — clone and build [HangmanClient](https://github.com/kishores046/HangmanClient) and run it, pointing it at this server's IP and port (`SERVER_PORT` above, `8080` by default).
 
 ---
 
