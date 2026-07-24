@@ -1,670 +1,1202 @@
-![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
-![HikariCP](https://img.shields.io/badge/HikariCP-00A86B?style=for-the-badge)
-![Caffeine](https://img.shields.io/badge/Caffeine-6F4E37?style=for-the-badge)
-![TCP Sockets](https://img.shields.io/badge/TCP%20Sockets-00599C?style=for-the-badge)
-![Jackson](https://img.shields.io/badge/Jackson-000000?style=for-the-badge)
-![OMDb API](https://img.shields.io/badge/OMDb%20API-E50914?style=for-the-badge)
+# 🎮 HangmanCLI
 
-# HangmanCLI 🎮
+![Java](https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk)
+![MySQL](https://img.shields.io/badge/MySQL-9.x-blue?style=for-the-badge&logo=mysql)
+![Docker](https://img.shields.io/badge/Docker-Compose-blue?style=for-the-badge&logo=docker)
+![HikariCP](https://img.shields.io/badge/HikariCP-Connection%20Pool-green?style=for-the-badge)
+![Maven](https://img.shields.io/badge/Maven-Build-red?style=for-the-badge&logo=apachemaven)
+![Java Sockets](https://img.shields.io/badge/TCP-Sockets-yellow?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-success?style=for-the-badge)
+![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=for-the-badge)
 
-A multiplayer terminal-based Hangman game built entirely in raw Java — no web frameworks. Uses TCP sockets, thread pools, HikariCP, and MySQL. Supports single-player, real-time 1v1 multiplayer matchmaking, persistent player accounts, time-based scoring, in-game chat, plot hints powered by the OMDb API, and a word dataset sourced from IMDb with 14 genre categories.
+A **multiplayer terminal-based Hangman game** implemented entirely using **Core Java**, **TCP sockets**, **multithreading**, and **MySQL**.
+
+Unlike typical Hangman games that rely on web frameworks or game engines, this project demonstrates how distributed multiplayer systems can be built directly using Java networking APIs, thread pools, connection pooling, and a custom application protocol.
+
+The project supports:
+
+- 🎯 Single Player Mode
+- ⚔️ Multiplayer Matchmaking
+- 💬 Real-time Chat
+- 🔐 Secure Authentication (BCrypt)
+- 🏆 Persistent Leaderboards
+- 📈 Player Profiles
+- 📜 Match History
+- 🎬 Movie Plot Hints using OMDb API
+- 🐳 Docker Deployment
+- ⚡ HikariCP Connection Pooling
+
+---
+
+## ⚡ Quick Start
+
+Fastest way to try it out, using Docker:
+
+```bash
+git clone https://github.com/kishores046/HangmanCLI.git
+cd HangmanCLI
+cp .env.example .env    # fill in your OMDb API key and DB credentials
+docker compose up --build
+```
+
+The client (`HangmanClient`) lives in its own repository — see [HangmanClient](https://github.com/<your-username>/HangmanClient) for build/run instructions. It connects to this server either via LAN auto-discovery (UDP) or by pointing directly at the server's public IP.
+
+> **Production server:** the hosted instance runs on an AWS EC2 instance behind a static Elastic IP, so clients connecting over the internet should use that address directly rather than relying on LAN discovery, which only works on the same local network as the server.
+
+For a manual (non-Docker) server setup, see [Running Without Docker](#running-without-docker).
 
 ---
 
 ## Table of Contents
 
 - [Features](#features)
-- [Architecture](#architecture)
-- [Data Pipeline](#data-pipeline)
+- [Technology Stack](#technology-stack)
+- [Architecture Overview](#architecture-overview)
+- [Threading Architecture](#threading-architecture)
 - [Project Structure](#project-structure)
+- [Package Overview](#package-overview)
+- [Connection Abstraction](#connection-abstraction)
+- [Client Authentication](#client-authentication)
+- [Design Principles Used](#design-principles-used)
+- [Data Access Layer (DAO)](#data-access-layer-dao)
 - [Database Schema](#database-schema)
-- [Prerequisites](#prerequisites)
-- [Setup and Installation](#setup-and-installation)
-- [Running the Application](#running-the-application)
-- [Gameplay](#gameplay)
-- [Multiplayer Chat](#multiplayer-chat)
-- [Hint System](#hint-system)
-- [Protocol Reference](#protocol-reference)
+- [HikariCP Connection Pool](#hikaricp-connection-pool)
+- [Game Engine](#game-engine)
 - [Scoring System](#scoring-system)
-- [Caching Strategy](#caching-strategy)
-- [Design Decisions](#design-decisions)
-- [Known Limitations](#known-limitations)
+- [Multiplayer Session](#multiplayer-session)
+- [Chat Service](#chat-service)
+- [Communication Protocol](#communication-protocol)
+- [UDP Discovery](#udp-discovery)
+- [Installation](#installation)
+- [Docker Deployment](#docker-deployment)
+- [Error Handling](#error-handling)
+- [Performance Optimizations](#performance-optimizations)
+- [Security Features](#security-features)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
 ## Features
 
-- **Single Player mode** — Play Hangman solo against the clock
-- **Multiplayer mode** — Automatic 1v1 matchmaking; both players play simultaneously and scores are compared at the end
-- **In-game Chat** — Players exchange messages with their opponent during a multiplayer game over the same TCP stream — no separate channel needed
-- **Player Authentication** — Register with a username and password; returning players log in to preserve their stats
-- **Persistent Stats** — `played_count`, `highest_score`, `total_score` (cumulative XP), and `total_wins` tracked per player in MySQL
-- **Leaderboard** — Top 5 players ranked by total XP, with win percentage and best score as tiebreakers; viewable from the main menu or shown automatically after every game
-- **Player Profile** — View your own stats including win rate, total XP, best score, and last played
-- **Match History** — View your last 10 PvP matches with outcome, scores, and duration; resolved in one JOIN query (no N+1)
-- **Solo Session History** — View your last 10 single-player games separately from PvP history
-- **14 Word Categories** — Horror, Thriller, Sci-Fi, Mystery, Adventure, Family, Drama, Crime, Romance, Biography, Comedy, Animation, History, and Comic-Series — populated from the IMDb public dataset (50K+ votes filter) and manually curated
-- **Letter Hint** — Reveal one random unrevealed letter (up to 4 per game, −5 points each)
-- **Plot Hint** — Reveal a short movie plot from the OMDb API (1 per game, −15 points); lazily fetched and cached in Caffeine then persisted to DB so subsequent requests skip the API
-- **Time-based Scoring** — Faster guesses earn bonus points on top of the base accuracy score
-- **Hint penalty deduction** — Both hint types reduce the final score; penalty tracked per session
-- **ASCII Hangman** — Full 7-frame progressive ASCII art gallows
-- **Disconnect handling** — `setSoTimeout(120s)` on all sockets; opponent notified and session ends cleanly on timeout
-- **OS-aware DB config** — Profile selected at startup via `-Dprofile=win|wsl|linux`; no code change needed between environments
-- **Docker support** — `docker-compose.yml` wires MySQL and the server together; MySQL schema auto-loaded via `docker-entrypoint-initdb.d`
+### 🎮 Game Modes
+
+**Single Player** — play Hangman against the computer.
+
+- Difficulty Selection
+- Category Selection
+- Score Calculation
+- Hint System
+- Plot Hint System
+- Persistent Match History
+
+**Multiplayer** — two players are automatically matched through a dedicated matchmaking service.
+
+Both players receive:
+
+- same game rules
+- independent gameplay
+- simultaneous execution
+
+After completion:
+
+- scores are compared
+- winner announced
+- leaderboard updated
+- match stored permanently
 
 ---
 
-## Architecture
+### 🔐 Authentication
 
-The server uses three dedicated thread pools with clear ownership to avoid thread-pool deadlocks.
+Supports both
+
+- New User Registration
+- Existing User Login
+
+Security features:
+
+- BCrypt password hashing
+- Automatic SHA-256 migration for legacy accounts
+- Maximum login attempts
+- Authentication before entering any game mode
+
+---
+
+### 🏆 Leaderboard
+
+The server maintains persistent rankings, based on:
+
+1. Total Score
+2. Highest Score
+3. Win Percentage
+
+Displayed after multiplayer games, single player games, and via the leaderboard menu option.
+
+---
+
+### 👤 Player Profile
+
+Every registered player has a persistent profile, including:
+
+- Username
+- Total XP
+- Highest Score
+- Games Played
+- Wins
+- Win Percentage
+- Last Played
+
+---
+
+### 📜 Match History
+
+Two independent history systems.
+
+**Multiplayer History** stores: opponent, winner, scores, duration, result, timestamp.
+
+**Single Player History** stores: score, duration, wrong attempts, win/loss, played time.
+
+---
+
+### 🎬 OMDb Plot Hint
+
+Every movie word may contain an IMDb ID. Instead of revealing the answer directly, the server fetches a short plot summary from the OMDb API.
+
+Features:
+
+- Lazy loading
+- Database persistence
+- Caffeine cache
+- Automatic fallback
+
+Repeated requests never call the API again.
+
+---
+
+### 💬 Multiplayer Chat
+
+Players can communicate while playing.
+
+```
+CHAT:Good luck!
+```
+
+Opponent receives:
+
+```
+[[CHAT]]
+Alice:
+Good luck!
+```
+
+The chat system shares the same TCP connection used by the game — no separate socket required.
+
+---
+
+### 🎯 Hint System
+
+Two kinds of hints are supported.
+
+| Hint Type | Effect | Limit | Penalty |
+|-----------|--------|-------|---------|
+| Letter Hint | Reveals one random letter | Max 4 per game | -5 pts each |
+| Plot Hint | Fetches movie description | Max 1 per game | -15 pts |
+
+---
+
+### 📂 Categories
+
+Players first choose a category, e.g. Action, Horror, Comedy, Drama, Crime, Sci-Fi, Adventure, Animation, Mystery, Romance.
+
+Categories are loaded dynamically from MySQL.
+
+---
+
+### 🎚 Difficulty Levels
+
+| Difficulty | Attempts |
+|------------|---------:|
+| Easy | 8 |
+| Medium | 6 |
+| Hard | 4 |
+
+---
+
+### 🐳 Docker Support
+
+Project includes a `Dockerfile` and `docker-compose.yml`.
+
+```bash
+docker compose up
+```
+
+starts MySQL and the Hangman Server without installing MySQL manually.
+
+---
+
+### 📡 UDP Discovery
+
+Clients can automatically discover the server. The discovery service listens on UDP and responds with the TCP server port — no manual IP configuration is required on local networks.
+
+---
+
+### ⚡ High Performance
+
+Optimizations include:
+
+- HikariCP Connection Pool
+- Caffeine Cache
+- ExecutorService Thread Pools
+- CompletableFuture
+- Prepared Statements
+- Connection Reuse
+
+---
+
+## Technology Stack
+
+| Category | Technology |
+|------------|------------|
+| Language | Java 21 |
+| Networking | TCP Sockets |
+| Discovery | UDP |
+| Database | MySQL 9 |
+| Build Tool | Maven |
+| Connection Pool | HikariCP |
+| Cache | Caffeine |
+| JSON Parsing | Jackson |
+| Authentication | BCrypt |
+| API | OMDb |
+| Containerization | Docker |
+| Logging | java.util.logging |
+
+---
+
+## Architecture Overview
 
 ```mermaid
 flowchart TD
-    Client(["💻 Client · TCP :8080"])
 
-    subgraph CHP["CLIENT_HANDLER_POOL · 10 threads"]
-        CH["ClientHandler\nauthenticates · reads mode · routes"]
-    end
+    A[ServerSocket.accept()] --> B[CLIENT_HANDLER_POOL]
 
-    subgraph MMT["MATCHMAKER_THREAD · daemon"]
-        MM["MatchMakingService\nBlockingQueue · pairs players"]
-    end
+    B --> C[ClientHandler]
 
-    subgraph GSP["GAME_SESSION_POOL · 20 threads"]
-        SMS["SingleModeSession\ncalls engine directly"]
-        GS["GameSession\nsupplyAsync ×2 → join()"]
-    end
+    C --> D[AuthenticationService]
 
-    subgraph HEP["HANGMAN_ENGINE_POOL · cached"]
-        HGE1["HangmanGameEngine P1\ncategory · guess loop · hints · score"]
-        HGE2["HangmanGameEngine P2\ncategory · guess loop · hints · score"]
-    end
+    D --> E{Choose Mode}
 
-    CS["ChatService\nroutes CHAT: messages\nbetween opponents — synchronized"]
-    CDH["ClientDisconnectHandler\nnotifies opponent · sets flag"]
-    AUTH["AuthenticationService\nregister / login — singleton"]
-    CAT["CategoryDAO\nloads categories from DB"]
-    WSDAO["WordsStatsDAO\nWordEntry: word + imdb_id + plot_hint"]
-    PSDAO["PlayerStatsDAO\nauth · stats · leaderboard · profile"]
-    MHDAO["MatchHistoryDAO\nsaveMatch · getMatchHistory JOIN"]
-    SPDAO["SingleModeSessionDAO\nsave · getHistory"]
-    MHS["MatchHistoryService\nformats match + solo history"]
-    OMDB["OmdbClient\nfetches short plot by imdb_id\nCaffeine cache → DB → API"]
-    HCP["HikariCP\nconnection pool · max 10"]
-    DB[("MySQL\nplayers · words · categories\nmatches · single_player_sessions")]
+    E -->|Single Player| F[SingleModeSession]
 
-    Client      --> CH
-    CH          -- "auth first\nthen mode" --> SMS
-    CH          -- "auth first\nthen mode" --> MM
-    CH          -- "auth first" --> MHS
-    MM          -- "matched pair" --> GS
-    SMS         -- "direct call" --> HGE1
-    GS          -- "supplyAsync" --> HGE1
-    GS          -- "supplyAsync" --> HGE2
-    GS          -- "creates" --> CS
-    GS          -- "creates" --> CDH
-    HGE1 & HGE2 -- "CHAT: prefix" --> CS
-    HGE1 & HGE2 -- "timeout/error" --> CDH
-    HGE1 & HGE2 --> AUTH --> PSDAO
-    HGE1 & HGE2 --> CAT
-    HGE1 & HGE2 --> WSDAO
-    HGE1 & HGE2 --> PSDAO
-    HGE1 & HGE2 -- "PLOTHINT" --> OMDB
-    GS --> MHS --> MHDAO
-    SMS --> MHS --> SPDAO
-    PSDAO & WSDAO & MHDAO & SPDAO --> HCP --> DB
-```
+    E -->|Multiplayer| G[MatchMakingService]
 
-**Why three pools?** `GameSession` runs on `GAME_SESSION_POOL` and submits engine tasks to `HANGMAN_ENGINE_POOL` via `CompletableFuture.supplyAsync`, then blocks with `.join()`. If both used the same pool, a saturated pool would deadlock — all threads blocking on `join()` with no threads left to run the engine tasks.
+    E -->|Leaderboard| H[LeaderboardPrinter]
 
-**Why cached pool for engines?** `HangmanGameEngine.run()` spends almost all its time blocked on `in.readLine()` waiting for the human to type. These are I/O-bound threads — not CPU-bound — so holding many is safe. A fixed pool would starve new games when all slots are occupied waiting for slow players.
+    E -->|Profile| I[ProfilePrinter]
 
-**Why a daemon thread for the matchmaker?** The matchmaking loop blocks indefinitely on `BlockingQueue.take()`. A non-daemon thread prevents JVM shutdown even after all executor pools are stopped. With `setDaemon(true)` the JVM exits cleanly — the matchmaker is automatically killed.
+    E -->|History| J[MatchHistoryService]
 
-**Why auth before mode selection?** Authentication happens once in `ClientHandler` before any menu option is accessible. Leaderboard, match history, and solo history all contain player-specific data — none should be reachable without authentication. The authenticated `WaitingPlayer` (with verified `id` and `username`) is passed into every downstream service, eliminating re-auth and extra queries.
+    G --> K[Waiting Queue]
 
-**Signal-based in-band protocol:** the server sends structured signal strings on the same TCP stream as game messages. The client switches on them to know when to prompt for input vs. display text. A `CATEGORY_END` sentinel marks the end of the dynamic category list so the client never hard-codes a line count.
+    K --> L[GAME_SESSION_POOL]
 
-```
-SERVER → CLIENT signals:
-  INPUT_USERNAME        → client prompts for username
-  INPUT_PASSWORD_NEW    → client prompts to create password
-  INPUT_PASSWORD_AUTH   → client prompts to enter password
-  AUTH_SUCCESS          → login/registration succeeded
-  AUTH_FAILED           → wrong password, retry
-  AUTH_BLOCKED          → too many failures, disconnecting
-  INPUT_MODE            → client shows mode menu, reads choice
-  INPUT_CATEGORY        → client reads category lines until CATEGORY_END
-  CATEGORY_END          → sentinel marking end of dynamic category list
-  INPUT_GUESS           → client enters game loop
-  WAITING               → client shows "waiting for opponent"
-  MATCH_FOUND           → client shows match banner
-  CHAT_SENT             → silent ACK for sent chat message
-  Ended                 → client exits read loop
+    L --> M[GameSession]
 
-CLIENT → SERVER:
-  plain text            → username, password, category number, guess letter
-  HINT                  → request a letter hint
-  PLOTHINT              → request a plot hint (OMDb)
-  CHAT:<message>        → send chat message to opponent
+    M --> N[CompletableFuture]
+
+    N --> O[HANGMAN_ENGINE_POOL]
+
+    F --> O
+
+    O --> P[HangmanGameEngine]
+
+    P --> Q[DAO Layer]
+
+    Q --> R[HikariCP]
+
+    R --> S[(MySQL)]
 ```
 
 ---
 
-## Data Pipeline
+## Threading Architecture
 
-Word data is sourced from the IMDb public dataset, not from a static SQL file.
+The server uses **multiple executor services**, each dedicated to a specific responsibility.
 
+### CLIENT_HANDLER_POOL
+
+Responsible for accepting client requests, authentication, menu navigation, and dispatching sessions. Each connected client gets its own handler.
+
+### GAME_SESSION_POOL
+
+Responsible for both multiplayer and single-player sessions. Each session executes independently.
+
+### HANGMAN_ENGINE_POOL
+
+Runs the core Hangman engine. Isolates game execution, prevents matchmaking delays, and allows simultaneous games.
+
+### Matchmaking Thread
+
+A dedicated daemon thread continuously waits for players.
+
+```mermaid
+flowchart TB
+
+    A[Player A]
+    B[Player B]
+
+    A --> C[LinkedBlockingQueue]
+    B --> C
+
+    C --> D{Two Players Available?}
+
+    D -->|No| C
+
+    D -->|Yes| E[MatchMakingService]
+
+    E --> F[Create GameSession]
+
+    F --> G[GAME_SESSION_POOL]
+
+    G --> H[GameSession Started]
 ```
-IMDb title.basics.tsv.gz   →  IMDbStagingETL.java
-IMDb title.ratings.tsv.gz  →     (batch ETL, run once)
-         │
-         ▼
-   words_staging table      ← raw candidates filtered to:
-   (tconst, title,              - titleType = "movie"
-    genres, rating, votes)      - isAdult = 0
-                                - numVotes ≥ 50,000
-         │
-         ▼ SQL genre → category mapping
-   words table               ← top 200 per category by num_votes
-   (wordId, word,                14 categories populated
-    category_id, imdb_id,        Comic-Series seeded manually
-    plot_hint,                   (not an IMDb genre tag)
-    popularity_votes)
-         │
-         ▼ on PLOTHINT request
-   OmdbClient                ← fetches short plot by imdb_id
-   Caffeine cache             → persists to words.plot_hint
-   (imdb_id → plot string)      subsequent requests skip API
-```
 
-The word list is **not committed to GitHub**. Users run the ETL against the publicly available IMDb dataset (freely downloadable from datasets.imdbws.com) and populate the `words` table themselves. The schema and ETL code are provided — the data is not.
+The matchmaking algorithm uses `LinkedBlockingQueue`, ensuring thread safety, FIFO ordering, and automatic blocking until two players become available.
+
+---
+
+## Design Goals
+
+The project was designed to demonstrate real-world backend engineering concepts rather than simply implementing a Hangman game.
+
+Primary goals include:
+
+- Object-Oriented Design
+- Clean Separation of Concerns
+- Network Programming
+- Concurrent Programming
+- Connection Pooling
+- Database Persistence
+- Secure Authentication
+- Docker Deployment
+- Modular Architecture
+- Extensibility for future clients (GUI/Web)
 
 ---
 
 ## Project Structure
 
-```
-src/
-├── client/
-│   └── GameClient.java                 # Terminal client — signal-driven read loop
-├── dao/
-│   ├── CategoryDAO.java                # Loads categories from DB (ordered by id)
-│   ├── MatchHistoryDAO.java            # saveMatch · getMatchHistory with JOIN
-│   ├── PlayerStatsDAO.java             # Auth (register/login/id) + stats CRUD
-│   ├── SingleModeSessionDAO.java       # save · getHistory for solo sessions
-│   ├── WordEntry.java                  # Record: wordId, word, imdbId, plotHint
-│   └── WordsStatsDAO.java              # Random WordEntry by category + savePlotHint
-├── etl/
-│   └── IMDbStagingETL.java             # One-time batch job: IMDb TSV → words_staging
-├── model/
-│   ├── Category.java                   # Record: id, name
-│   ├── MatchHistory.java               # Record: match result DTO
-│   ├── PlayerResult.java               # Record: username, score, status, attempts, seconds
-│   ├── PlayerStats.java                # Record: full player record from DB
-│   ├── SinglePlayerSession.java        # Record: solo session DTO
-│   ├── Status.java                     # Enum: WIN, LOSE, DRAW, NOTHING
-│   └── WaitingPlayer.java              # Socket + username + playerId
-├── service/
-│   ├── AuthenticationService.java      # Singleton: register / login, sets playerId
-│   ├── ChatService.java                # Routes CHAT: messages — synchronized
-│   ├── ClientDisconnectHandler.java    # Notifies opponent on timeout — volatile flag
-│   ├── ClientHandler.java              # Auth → mode selection → routing
-│   ├── GameServer.java                 # Entry point; ServerSocket accept loop
-│   ├── GameSession.java                # Multiplayer: parallel engines, result, history
-│   ├── HangmanGameEngine.java          # Core game loop: category, guess, hints, score
-│   ├── MatchHistoryService.java        # Formats PvP + solo history; delegates to DAOs
-│   ├── MatchMakingService.java         # Daemon thread; BlockingQueue pairs players
-│   ├── Session.java                    # Marker interface (extends Runnable)
-│   └── SingleModeSession.java          # Solo wrapper: engine → history → leaderboard
-└── util/
-    ├── DBConfigProperties.java         # POJO: DB URL / user / password
-    ├── HikariConnectionManager.java    # Static HikariDataSource factory (pool 10)
-    ├── JDBConnectionManager.java       # Legacy DriverManager (retained for reference)
-    ├── LeaderboardPrinter.java         # Top-N table with XP, wins, win% over PrintWriter
-    ├── OmdbClient.java                 # Caffeine cache → DB → OMDb API for plot hints
-    ├── PasswordUtil.java               # SHA-256 hash + verify
-    ├── ProfilePrinter.java             # Player profile table over PrintWriter
-    └── PropertyLoaderUtil.java         # Loads db-<profile>-config.properties
+The project follows a layered architecture that separates networking, business logic, persistence, domain models, and utilities into dedicated packages. This separation improves maintainability, readability, and future extensibility.
 
-resources/
-├── db-win-config.properties            # Windows DB credentials  — gitignored
-└── db-wsl-config.properties            # WSL/Linux credentials   — gitignored
-
-init/
-└── 01-01-schema.sql                       # Full schema — used by Docker entrypoint
 ```
+HangmanCLI
+│
+├── db/
+│   ├── schema.sql
+│   ├── sample-seed.sql
+│   └── words.sql
+│
+├── logs/
+│
+├── src/
+│   ├── dao
+│   ├── model
+│   ├── service
+│   │   └── connection
+│   ├── util
+│   └── resources
+│
+├── docker-compose.yml
+├── Dockerfile
+├── pom.xml
+├── README.md
+└── .env
+```
+
+| Package | Responsibility |
+|----------|----------------|
+| `dao` | Database access using JDBC and HikariCP |
+| `model` | Domain models and records |
+| `service` | Business logic and networking |
+| `service.connection` | TCP communication abstraction |
+| `util` | Helper classes, caching, configuration, logging |
+| `resources` | Logging configuration |
+
+---
+
+## Package Overview
+
+### DAO Layer
+
+Responsible for all database operations.
+
+```
+dao
+│
+├── CategoryDAO
+├── MatchHistoryDAO
+├── PlayerStatsDAO
+├── SingleModeSessionDAO
+├── WordsStatsDAO
+└── WordEntry
+```
+
+Responsibilities include Player Authentication, Leaderboard, Match History, Categories, Words, Profiles, and Statistics. The service layer never executes SQL directly.
+
+---
+
+### Model Layer
+
+Contains immutable domain objects.
+
+```
+model
+│
+├── Category
+├── MatchHistory
+├── PlayerResult
+├── PlayerStats
+├── SinglePlayerSession
+├── WaitingPlayer
+└── Status
+```
+
+Java Records are used wherever possible to reduce boilerplate and improve readability.
+
+---
+
+### Service Layer
+
+Contains the application's business logic.
+
+```
+service
+│
+├── AuthenticationService
+├── ChatService
+├── ClientDisconnectHandler
+├── ClientHandler
+├── DiscoveryService
+├── GameSession
+├── GameTcpServer
+├── HangmanGameEngine
+├── MatchHistoryService
+├── MatchMakingService
+├── Session
+└── SingleModeSession
+```
+
+This package coordinates networking, authentication, matchmaking, gameplay, scoring, history, leaderboard, and profiles.
+
+---
+
+### Connection Layer
+
+```
+service.connection
+│
+├── ClientConnection
+├── ClientContext
+└── TcpConnection
+```
+
+This abstraction completely separates networking code from business logic.
+
+---
+
+### Utility Layer
+
+```
+util
+│
+├── DBConfigProperties
+├── HikariConnectionManager
+├── JDBConnectionManager
+├── LeaderboardPrinter
+├── OmdbClient
+├── PasswordUtil
+├── ProfilePrinter
+└── PropertyLoaderUtil
+```
+
+Responsibilities: password hashing, connection pool, logging, OMDb API, profile printing, leaderboard printing, and environment variables.
+
+---
+
+## Connection Abstraction
+
+One of the biggest architectural improvements in the project is the introduction of a communication abstraction.
+
+Instead of coupling the application directly with `PrintWriter` / `BufferedReader`, all communication now happens through `ClientConnection`.
+
+### Why?
+
+Initially, many services depended directly on `PrintWriter`:
+
+```
+GameEngine → PrintWriter.println()
+```
+
+This tightly coupled business logic with TCP sockets. Changing the communication mechanism would require modifications across multiple classes.
+
+### New Architecture
+
+```
+GameEngine
+      │
+      ▼
+ClientConnection
+      │
+      ▼
+TcpConnection
+      │
+      ▼
+ClientContext
+      │
+      ▼
+PrintWriter / BufferedReader
+```
+
+Now every service only depends on `ClientConnection` instead of low-level socket streams.
+
+### Benefits
+
+**Loose Coupling** — business logic no longer knows about `PrintWriter`, `BufferedReader`, or `Socket`. It only knows `ClientConnection`.
+
+**Easy Testing** — a mock implementation (`MockConnection`) can store messages and assert results without opening sockets.
+
+**Future Expansion** — a future implementation (`WebSocketConnection`, `JsonConnection`, `EncryptedConnection`) can be added without modifying the game engine, as long as it implements `ClientConnection`.
+
+---
+
+## Client Authentication
+
+Authentication is handled by a dedicated singleton service, `AuthenticationService`, which supports Registration, Login, and Password Migration.
+
+### Authentication Flow
+
+```mermaid
+flowchart TD
+
+A[Client Connects]
+
+A --> B[Enter Username]
+
+B --> C{Username Exists?}
+
+C -->|No| D[Create Password]
+
+D --> E[BCrypt Hash]
+
+E --> F[Insert into Database]
+
+F --> G[Authentication Success]
+
+C -->|Yes| H[Enter Password]
+
+H --> I[Verify Password]
+
+I -->|Correct| G
+
+I -->|Wrong| J{Attempts < 3?}
+
+J -->|Yes| H
+
+J -->|No| K[Disconnect Client]
+```
+
+**Registration** — when a username does not exist, the server asks for a password, hashes it using BCrypt, stores the hash, and creates player statistics.
+
+**Login** — returning users enter a password, BCrypt verifies it, the player ID is loaded, and the session continues.
+
+**Legacy Password Support** — older SHA-256 passwords are automatically migrated to BCrypt on next successful login. No manual migration is required.
+
+### Password Security
+
+Passwords are **never stored in plaintext**. The server stores only a BCrypt hash (e.g. `$2a$12$...`). Even if the database is leaked, original passwords cannot be recovered.
+
+### WaitingPlayer
+
+After successful authentication, the server creates a `WaitingPlayer`, which stores the Socket, Username, Player ID, and ClientConnection. The authenticated player object travels through the entire application (Authentication → WaitingPlayer → Matchmaking → GameSession → HangmanGameEngine), reducing unnecessary database queries.
+
+### Client Handler
+
+Each client connection is managed by its own `ClientHandler`, responsible for username input, authentication, mode selection, and session routing. It does **not** play the game, calculate scores, or update the database — those responsibilities belong to dedicated services.
+
+```mermaid
+flowchart TD
+
+A[Socket Accepted]
+
+A --> B[ClientHandler]
+
+B --> C[Authentication]
+
+C --> D{Mode Selected}
+
+D -->|Single Player| E[SingleModeSession]
+
+D -->|Multiplayer| F[MatchMakingService]
+
+D -->|Leaderboard| G[LeaderboardPrinter]
+
+D -->|Profile| H[ProfilePrinter]
+
+D -->|History| I[MatchHistoryService]
+```
+
+---
+
+## Design Principles Used
+
+**Single Responsibility Principle** — each class has one responsibility (e.g. `AuthenticationService` → authentication, `ChatService` → chat routing, `MatchMakingService` → matchmaking, `LeaderboardPrinter` → leaderboard formatting).
+
+**Dependency Injection** — DAOs receive a `DataSource` through constructors rather than creating connections internally, improving loose coupling, testability, and provider swaps.
+
+**Interface Segregation** — the application communicates using `ClientConnection` rather than concrete socket classes.
+
+**Separation of Concerns** — Networking → Business Logic → Persistence → Utilities are completely separated into independent layers.
+
+---
+
+## Data Access Layer (DAO)
+
+The project follows the **Data Access Object (DAO)** pattern to isolate all database interactions from the business logic. Instead of embedding SQL queries inside services, every database operation is delegated to a dedicated DAO class.
+
+```mermaid
+flowchart TD
+
+A[Business Services]
+
+A --> B[CategoryDAO]
+A --> C[PlayerStatsDAO]
+A --> D[MatchHistoryDAO]
+A --> E[SingleModeSessionDAO]
+A --> F[WordsStatsDAO]
+
+B --> G[HikariCP]
+C --> G
+D --> G
+E --> G
+F --> G
+
+G --> H[(MySQL Database)]
+```
+
+| DAO | Responsibility |
+|-----|-----------------|
+| `CategoryDAO` | Loading categories, fetching words, updating plot hints, word stats (`getCategories()`, `getRandomWord()`, `updatePlotHint()`, `incrementUsage()`) |
+| `PlayerStatsDAO` | XP, wins, games played, highest score, total score, last played — used by Auth, Leaderboard, Profile, Game Engine |
+| `MatchHistoryDAO` | Player 1, Player 2, winner, scores, duration, timestamp |
+| `SingleModeSessionDAO` | Score, duration, attempts, result per single-player session |
+| `WordsStatsDAO` | Times played, win count, hint usage, plot hint usage — enables future word-difficulty analytics |
 
 ---
 
 ## Database Schema
 
-```sql
-CREATE TABLE players (
-    id            INT PRIMARY KEY AUTO_INCREMENT,
-    username      VARCHAR(50)  NOT NULL UNIQUE,
-    password_hash VARCHAR(64)  NOT NULL,
-    played_count  INT          NOT NULL DEFAULT 0,
-    highest_score INT          NOT NULL DEFAULT 0,
-    total_score   INT          NOT NULL DEFAULT 0,
-    total_wins    INT          NOT NULL DEFAULT 0,
-    last_played   TIMESTAMP    NOT NULL
-);
+The application uses MySQL as its persistent storage. Main entities include `players`, `categories`, `words`, `player_stats`, `match_history`, `single_player_history`, `word_statistics`.
 
-CREATE TABLE categories (
-    id            INT PRIMARY KEY AUTO_INCREMENT,
-    category_name VARCHAR(50)  NOT NULL UNIQUE
-);
+```mermaid
+erDiagram
 
-CREATE TABLE words (
-    wordId            INT PRIMARY KEY AUTO_INCREMENT,
-    word              VARCHAR(100) NOT NULL,
-    category_id       INT NOT NULL REFERENCES categories(id),
-    imdb_id           VARCHAR(20),          -- tconst e.g. tt0816692
-    plot_hint         TEXT,                 -- lazily fetched from OMDb, cached here
-    hint_fetched_at   TIMESTAMP,
-    popularity_votes  INT,
-    INDEX idx_words_category (category_id)
-);
+PLAYERS ||--|| PLAYER_STATS : owns
 
-CREATE TABLE words_staging (
-    tconst          VARCHAR(20) PRIMARY KEY,
-    primary_title   VARCHAR(255),
-    genres          VARCHAR(100),
-    average_rating  DECIMAL(3,1),
-    num_votes       INT
-);
+PLAYERS ||--o{ MATCH_HISTORY : participates
 
-CREATE TABLE matches (
-    id                       INT PRIMARY KEY AUTO_INCREMENT,
-    player1_id               INT NOT NULL REFERENCES players(id),
-    player2_id               INT NOT NULL REFERENCES players(id),
-    winner_id                INT REFERENCES players(id),   -- NULL = draw
-    player1_score            INT NOT NULL,
-    player2_score            INT NOT NULL,
-    player1_duration_seconds INT NOT NULL,
-    player2_duration_seconds INT NOT NULL,
-    result    ENUM('player1_win','player2_win','draw') NOT NULL,
-    played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_matches_player1   (player1_id),
-    INDEX idx_matches_player2   (player2_id),
-    INDEX idx_matches_winner    (winner_id),
-    INDEX idx_matches_played_at (played_at)
-);
+PLAYERS ||--o{ SINGLE_PLAYER_HISTORY : plays
 
-CREATE TABLE single_player_sessions (
-    id               INT PRIMARY KEY AUTO_INCREMENT,
-    player_id        INT NOT NULL REFERENCES players(id),
-    score            INT NOT NULL,
-    wrong_attempts   INT NOT NULL,
-    duration_seconds INT NOT NULL,
-    won              BOOLEAN NOT NULL,
-    played_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_sps_player (player_id)
-);
+CATEGORIES ||--o{ WORDS : contains
+
+WORDS ||--|| WORD_STATISTICS : tracks
 ```
 
 ---
 
-## Prerequisites
+## HikariCP Connection Pool
 
-| Requirement | Version |
-|---|---|
-| Java | 17 or higher |
-| MySQL | 8.0.19 or higher |
-| MySQL Connector/J | 9.x (JAR in `lib/`) |
-| HikariCP | 5.x (JAR in `lib/`) |
-| SLF4J API + Simple | 2.x (JAR in `lib/`, required by HikariCP) |
-| Caffeine | 3.x (JAR in `lib/`) |
-| Jackson Databind | 2.x (JAR in `lib/`, used by OmdbClient) |
-| OMDb API key | Free at omdbapi.com — 1000 req/day |
+Instead of opening a new JDBC connection for every request, the project uses **HikariCP**.
+
+Without pooling, every request pays the cost of `DriverManager → New Connection → Execute Query → Close Connection`. With HikariCP, a connection is requested from the pool, reused, and returned — no new TCP connection is created every time.
+
+**Advantages:** faster response time, reduced latency, better scalability, lower resource usage, automatic connection reuse.
 
 ---
 
-## Setup and Installation
+## Game Engine
 
-**1. Clone the repository**
-```bash
-git clone https://github.com/kishores046/HangmanCLI.git
-cd HangmanCLI
+The **HangmanGameEngine** is the core component responsible for gameplay: selecting a word, displaying progress, processing guesses, managing hints, calculating scores, updating statistics, and returning the final result.
+
+```mermaid
+flowchart TD
+
+A[Start Game]
+
+A --> B[Select Category]
+
+B --> C[Select Difficulty]
+
+C --> D[Load Random Word]
+
+D --> E[Gameplay Loop]
+
+E --> F{Guess}
+
+F -->|Correct| G[Reveal Letter]
+
+F -->|Wrong| H[Increase Wrong Attempts]
+
+F -->|Hint| I[Reveal Letter]
+
+F -->|Plot Hint| J[Fetch Plot]
+
+G --> K{Word Complete?}
+
+H --> L{Attempts Remaining?}
+
+I --> E
+
+J --> E
+
+K -->|Yes| M[Calculate Score]
+
+L -->|Yes| E
+
+L -->|No| N[Lose Game]
+
+M --> O[Update Database]
+
+N --> O
+
+O --> P[Return PlayerResult]
 ```
 
----
+### Plot Hint Flow
 
-**2. Add JARs to the project**
+```mermaid
+flowchart LR
 
-All JARs live in `lib/`. Add them all as dependencies.
+A[Player Requests Plot Hint]
 
-<details>
-<summary><b>IntelliJ IDEA</b></summary>
+A --> B{Already Cached?}
 
-```
-File → Project Structure (Ctrl+Alt+Shift+S)
-  → Modules → Dependencies tab
-  → click "+" → JARs or directories
-  → select all JARs in lib/
-  → OK → Apply → OK
-```
+B -->|Yes| C[Return Cached Plot]
 
-</details>
+B -->|No| D[Check Database]
 
-<details>
-<summary><b>Eclipse</b></summary>
+D --> E{Plot Exists?}
 
-```
-Right-click project → Build Path → Configure Build Path
-  → Libraries tab → Add External JARs...
-  → select all JARs in lib/ → Open → Apply and Close
-```
+E -->|Yes| F[Load Plot]
 
-</details>
+E -->|No| G[Call OMDb API]
 
----
+G --> H[Store in Database]
 
-**3. Create the database and schema**
+H --> I[Store in Caffeine Cache]
 
-```bash
-mysql -u root -p < init/01-01-schema.sql
+F --> J[Display Plot]
+
+I --> J
 ```
 
----
-
-**4. Populate word data (IMDb ETL)**
-
-Download the IMDb dataset files from [datasets.imdbws.com](https://datasets.imdbws.com):
-- `title.basics.tsv.gz`
-- `title.ratings.tsv.gz`
-
-Update the file paths in `IMDbStagingETL.java`, then run it as a Java application. It stages ~5,000+ candidate titles into `words_staging`. Then run the SQL genre-mapping inserts to populate the `words` table (see `init/02-populate-words.sql` for the full set of inserts).
-
----
-
-**5. Configure environment**
-
-Create the file matching your profile. Both are gitignored — never commit them.
-
-```properties
-# resources/db-win-config.properties  (Windows native MySQL)
-# resources/db-wsl-config.properties  (WSL / Linux MySQL)
-DB_URL      = jdbc:mysql://localhost:3306/hangman
-DB_USER     = root
-DB_PASSWORD = your_password_here
-```
-
-Set the OMDb API key as an environment variable:
-```bash
-# Windows
-set OMDB_API_KEY=your_key_here
-
-# Linux / WSL / macOS
-export OMDB_API_KEY=your_key_here
-```
-
-Mark `resources/` as a Resources Root (IntelliJ) or Source Folder (Eclipse) so properties files are on the classpath.
-
----
-
-**6. Build**
-
-<details>
-<summary><b>IntelliJ IDEA</b></summary>
-
-`Ctrl+F9` or `Build → Build Project`. Output to `out/production/HangManGame/`.
-
-</details>
-
-<details>
-<summary><b>Eclipse</b></summary>
-
-Builds automatically on save. Force rebuild: `Project → Clean → Clean all projects → OK`. Output to `bin/`.
-
-</details>
-
----
-
-## Running the Application
-
-> ⚠️ **Password visibility in IDEs:** `System.console()` returns `null` inside IDE consoles — password input is visible as plain text. Run from a real terminal to hide it.
-
-**Start the server:**
-
-```bash
-# Windows (default profile)
-java -Dprofile=win -cp "out;lib/*" service.GameTcpServer
-
-# WSL / Linux
-java -Dprofile=wsl -cp "out:lib/*" service.GameTcpServer
-```
-
-**Start one or more clients:**
-
-```bash
-# Default — connects to localhost:8080
-java -cp "out;lib/*" client.GameClient
-
-# Remote server
-java -cp "out;lib/*" client.GameClient your-server-ip 8080
-```
-
-For multiplayer, open two terminal windows and run the client command in each. Both choose option **2 (Multi Player)** — the matchmaker pairs them automatically.
-
----
-
-**Docker (server + MySQL together):**
-
-```bash
-# First start — builds image and loads schema automatically
-docker compose up --build
-
-# Subsequent starts
-docker compose up
-
-# Stop (data preserved)
-docker compose down
-
-# Stop and wipe all data
-docker compose down -v
-```
-
----
-
-## Gameplay
-
-```
-Enter your username: alice
-Username 'alice' is available! Create a password:
-Password (hidden): ••••••••
-Account created! Welcome, alice!
-
-Choose mode:
-  1: Single Player
-  2: Multi Player
-  3: Leaderboard
-  4: Match History (PvP)
-  5: Solo History
-  6: Player Profile
-> 1
-
-Welcome alice! Let's play Hangman.
-Choose your category:
-  1. Action-Movies
-  2. Thriller-Movies
-  3. SciFi-Movies
-  4. Horror-Movies
-  ...
-Enter 1-14:
-> 3
-
-   +---+        Word: _ _ _ _ _ _ _ _ _ _ _
-                Wrong attempts: 0/6
-
-Your guess (letter / HINT / PLOTHINT / CHAT:msg): p
-Word: _ _ _ _ _ _ _ _ _ _ _   ← no match
-Wrong attempts: 1/6
-
-Your guess: i
-Word: i _ _ _ _ _ _ _ _ _ _
-...
-Congratulations alice! You guessed the word: interstellar
-Your score: 87
-```
-
-**Authentication flow:**
-- New username → create password → account registered instantly
-- Returning username → enter password → up to 3 attempts → blocked after 3 failures
-
----
-
-## Multiplayer Chat
-
-Players send messages to their opponent at any point during a multiplayer game without affecting game flow.
-
-```
-Your guess (letter / HINT / PLOTHINT / CHAT:msg): CHAT:good luck!
-```
-
-The opponent sees:
-```
-[[CHAT]] alice: good luck!
-```
-
-`ChatService.route()` is `synchronized` — if both players send chat simultaneously, lines never interleave. The `[[CHAT]]` prefix lets the client distinguish chat from game messages. Single-player games pass `null` for `chatService`; the null check in the engine means zero overhead for solo games.
-
----
-
-## Hint System
-
-Two hint types are available during any game:
-
-| Command | Effect | Limit | Penalty |
-|---|---|---|---|
-| `HINT` | Reveals one random unrevealed letter | 4 per game | −5 points each |
-| `PLOTHINT` | Shows a short plot summary from OMDb | 1 per game | −15 points |
-
-**How plot hints work:**
-
-```
-Player types PLOTHINT
-       │
-       ▼
-Caffeine cache (imdb_id → plot string)
-  hit  → return immediately (<1ms)
-  miss ↓
-DB words.plot_hint column
-  populated → return, populate cache
-  null ↓
-OMDb API call (imdb_id → short plot)
-  success → sanitize to 20 words → save to DB → cache → return
-  fail    → "Plot hint unavailable right now."
-```
-
-The plot is sanitized to 20 words maximum before being sent to the player — enough context without revealing too much. Once fetched, it is persisted to the `words` table so future requests for the same word skip the API entirely.
-
----
-
-## Protocol Reference
-
-| Signal | Direction | Meaning |
-|---|---|---|
-| `INPUT_USERNAME` | Server → Client | Prompt for username |
-| `INPUT_PASSWORD_NEW` | Server → Client | Prompt to create password (new user) |
-| `INPUT_PASSWORD_AUTH` | Server → Client | Prompt to enter password (returning user) |
-| `AUTH_SUCCESS` | Server → Client | Login or registration succeeded |
-| `AUTH_FAILED` | Server → Client | Wrong password — retry |
-| `AUTH_BLOCKED` | Server → Client | Too many failures — disconnecting |
-| `INPUT_MODE` | Server → Client | Show mode menu, read choice |
-| `INPUT_CATEGORY` | Server → Client | Read category lines until `CATEGORY_END` |
-| `CATEGORY_END` | Server → Client | Sentinel — end of dynamic category list |
-| `INPUT_GUESS` | Server → Client | Client enters the game loop |
-| `WAITING` | Server → Client | Queued for multiplayer — waiting for opponent |
-| `MATCH_FOUND` | Server → Client | Opponent found; game starting |
-| `CHAT_SENT` | Server → Client | Silent ACK — chat delivered to opponent |
-| `Ended` | Server → Client | Session complete; client breaks read loop |
-| `HINT` | Client → Server | Request a letter hint |
-| `PLOTHINT` | Client → Server | Request a plot hint (OMDb) |
-| `CHAT:<msg>` | Client → Server | Send chat message to opponent |
-| `[[CHAT]]user: msg` | Server → Client | Incoming chat from opponent |
+Only one plot hint is allowed per game (-15 points). Plot hints are cached using **Caffeine**, so once a movie plot has been fetched, future requests are served directly from memory — faster response, lower API usage, reduced network latency.
 
 ---
 
 ## Scoring System
 
+```text
+Score =
+((MaximumAttempts - WrongAttempts) × 10)
++
+(Max(0, 60 - TimeInSeconds))
+-
+HintPenalty
+
+HintPenalty = (NumberOfHints × 5) + (PlotHint ? 15 : 0)
 ```
-Base score   = (MAX_ATTEMPTS − wrongAttempts) × 10
-Time bonus   = max(0, 60 − elapsedSeconds)
-Hint penalty = (hintsUsed × 5) + (plotHintsUsed × 15)
-Final score  = base score + time bonus − hint penalty
+
+This rewards accuracy, speed, and efficient use of hints.
+
+---
+
+## Multiplayer Session
+
+The multiplayer system runs both players simultaneously, each with an independent game engine. The final winner is determined after both engines complete.
+
+```mermaid
+flowchart LR
+
+Player1 --> GameSession
+
+Player2 --> GameSession
+
+GameSession --> Future1["CompletableFuture<PlayerResult>"]
+
+GameSession --> Future2["CompletableFuture<PlayerResult>"]
+
+Future1 --> Engine1[HangmanGameEngine]
+
+Future2 --> Engine2[HangmanGameEngine]
+
+Engine1 --> Compare[Compare Results]
+
+Engine2 --> Compare
+
+Compare --> Winner[Determine Winner]
+
+Winner --> Database
+
+Winner --> Leaderboard
+
+Winner --> Match History
 ```
 
-Maximum possible score (no wrong answers, under 60s, no hints) = `60 + 60 = 120`.
+---
 
-The leaderboard orders by `total_score DESC`, then `highest_score DESC`, then `win_percentage DESC` — rewarding consistent play, peak performance, and win rate in that order.
+## Chat Service
+
+Real-time chat during multiplayer games, reusing the existing TCP connection — no additional sockets or protocols needed.
+
+```mermaid
+sequenceDiagram
+
+participant P1 as Player A
+participant GS as GameSession
+participant CS as ChatService
+participant P2 as Player B
+
+P1->>GS: CHAT:Hello
+GS->>CS: Forward Message
+CS->>P2: [[CHAT]] Hello
+```
 
 ---
 
-## Caching Strategy
+## Logging
 
-| Cache | Implementation | TTL | Max size | What it holds |
-|---|---|---|---|---|
-| Plot hints | Caffeine | 6 hours | 500 | `imdb_id → short plot string` |
-
-Plot hints are the only data cached in memory. Leaderboard and category data are not cached — with HikariCP and a warm connection pool, these queries complete in under 5ms and caching would add complexity for no measurable benefit at the current user scale.
-
-The Caffeine cache is backed by the DB: a cache miss checks `words.plot_hint` before calling the OMDb API. A successful API call writes back to the DB so the cache survives server restarts (the next warm-up is a DB read, not an API call).
+Application events are logged using `java.util.logging`, covering server startup, client connections, authentication, matchmaking, gameplay, errors, and database operations. Logs are written to both the console and rotating log files.
 
 ---
 
-## Design Decisions
+## Configuration Management
 
-**Why raw TCP sockets over HTTP?**
-Built to learn Java networking fundamentals from scratch — socket lifecycle, stream framing, connection threading, protocol design. Spring Boot would have hidden all of this.
-
-**Why three executor pools?**
-`GameSession` runs on `GAME_SESSION_POOL`, calls `CompletableFuture.supplyAsync(..., HANGMAN_ENGINE_POOL)`, then blocks on `.join()`. If both used the same pool, all threads would block on `join()` waiting for engine tasks that can never be scheduled — classic thread-pool deadlock. Separating pools by responsibility eliminates this entirely.
-
-**Why a cached pool for engines?**
-`HangmanGameEngine.run()` is almost entirely `in.readLine()` — waiting for a human to type. I/O-bound blocking threads don't compete for CPU, so a large number of them is safe. A fixed pool would artificially cap concurrent games even when threads are idle.
-
-**Why auth before mode selection?**
-Leaderboard, match history, and profile all contain player-specific data. Moving auth to `ClientHandler` means it happens once before any feature is accessible. The authenticated `WaitingPlayer` carries a verified `id` — downstream services never re-query for the player's identity.
-
-**Why carry `id` on `WaitingPlayer`?**
-`MatchHistoryDAO.saveMatch()` needs player IDs to insert FK references into the `matches` table. Fetching IDs separately after the game would be two extra queries per match. Setting `id` on `WaitingPlayer` during auth means the ID travels through the session for free.
-
-**Why `BlockingQueue` for matchmaking?**
-`LinkedBlockingQueue.take()` blocks cleanly until two players are available — no polling, no `Thread.sleep()`. Daemon thread means it never prevents JVM shutdown.
-
-**Why HikariCP instead of raw `DriverManager`?**
-Raw `DriverManager.getConnection()` opens and closes a TCP connection to MySQL on every call. Under multiplayer load this creates dozens of connections per second. HikariCP maintains a warm pool of 10 connections and hands them out in microseconds, with automatic validation, leak detection, and stale-connection eviction.
-
-**Why `DataSource` injected into DAOs?**
-A DAO that calls `HikariConnectionManager.getDataSource()` internally is untestable without reflection. Passing `DataSource` through the constructor means any `DataSource` (including an in-memory H2 pool) can be substituted in tests.
-
-**Why Caffeine for plot hints?**
-The OMDb API is called at most once per unique word ever — after that, the plot is in the DB and the cache. Without caching, two players guessing the same word simultaneously would both trigger an API call. Caffeine collapses concurrent misses and makes subsequent lookups sub-millisecond.
-
-**Why `synchronized` on `ChatService.route()`?**
-`PrintWriter.println()` is synchronized per character, but two rapid calls from different engine threads can still interleave at the line level. Synchronizing the whole method prevents `[[CHAT]]alice:` and `[[CHAT]]bob:` from garbling each other on the recipient's screen.
-
-**Why IMDb dataset instead of a live API?**
-TMDb is geo-blocked in India. The IMDb public dataset (freely available at datasets.imdbws.com) is downloadable once, processed by the ETL job, and filtered to 50K+ vote movies — giving thousands of high-quality, well-known movie titles across 14 genres with zero ongoing API dependency.
-
-**Why SHA-256 for passwords?**
-No external libraries beyond HikariCP and the MySQL driver are required at runtime. SHA-256 is in the Java standard library and is sufficient for a learning project. Production would use BCrypt or Argon2.
-
-**Why profile-based DB config files?**
-Developed on both Windows (MySQL as a native service) and WSL (MySQL started manually as a Linux service). The two environments differ in host and socket path. `-Dprofile=win|wsl|linux` selects the right file at startup — the same pattern Spring uses for environment profiles, applied manually here.
+Runtime configuration is externalized through environment variables and property files (database URL, credentials, OMDb API key, server port, logging config), keeping sensitive information out of the source code and simplifying deployment across environments.
 
 ---
 
-## Known Limitations
+## Installation
 
-- **No SSL/TLS** — passwords travel as plaintext before hashing server-side; a production deployment requires TLS termination (Nginx `stream` block + Let's Encrypt)
-- **No reconnection with game resume** — a token system could skip re-auth on reconnect, but without persisting game state to DB, the game itself cannot be resumed; opponent is notified and session ends cleanly via `ClientDisconnectHandler`
-- **Password visible in IDEs** — `System.console()` returns `null` in IDE run configurations; use a real terminal for hidden input
-- **Single server instance** — all state is in-JVM; horizontal scaling would require externalizing the matchmaking queue (e.g. Redis) and session state
-- **Chat is in-band and ephemeral** — no history, no persistence, no offline messaging
-- **OMDb free tier** — 1,000 API calls/day; Caffeine + DB persistence mean real usage is well under this limit, but a popular server could exhaust it
-- **IMDb word normalization strips spaces** — "The Dark Knight" becomes "TheDarkKnight"; the display currently shows the normalized form; showing the original spaced title with underscores revealed per-word is a planned improvement
+### Prerequisites
+
+| Software | Version |
+|----------|---------|
+| Java | 21 or later |
+| Maven | 3.9+ |
+| MySQL | 9.x |
+| Docker | Latest |
+| Docker Compose | Latest |
+| Git | Latest |
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/kishores046/HangmanCLI.git
+cd HangmanCLI
+```
+
+### Environment Variables
+
+The application uses environment variables to configure the database and external services. Create a `.env` file in the project root:
+
+```properties
+MYSQL_DATABASE=hangman
+MYSQL_USER=hangman
+MYSQL_PASSWORD=password
+MYSQL_ROOT_PASSWORD=rootpassword
+
+DB_HOST=db
+DB_PORT=3306
+DB_URL=jdbc:mysql://${DB_HOST}:${DB_PORT}/${MYSQL_DATABASE}
+DB_USER=${MYSQL_USER}
+DB_PASSWORD=${MYSQL_PASSWORD}
+
+SERVER_PORT=8080
+DISCOVERY_PORT=8088
+
+OMDB_API_KEY=your_api_key
+```
+
+> **Note:** Never commit your `.env` file or API keys to version control. Add them to `.gitignore`.
+
+### Building the Project
+
+```bash
+mvn clean package
+```
+
+The generated executable JAR will be available in `target/`.
+
+### Running Without Docker
+
+**1. Start MySQL**
+
+```sql
+CREATE DATABASE hangman;
+```
+
+**2. Execute Schema**
+
+```sql
+SOURCE db/schema.sql;
+```
+
+**3. Load Sample Data**
+
+```sql
+SOURCE db/sample-seed.sql;
+```
+
+or
+
+```sql
+SOURCE db/words.sql;
+```
+
+**4. Run the Server**
+
+```bash
+java -jar target/HangmanServer.jar
+```
+
+**5. Run the Client**
+
+The client is maintained as a separate project — clone and build [HangmanClient](https://github.com/<your-username>/HangmanClient) and run it, pointing it at this server's IP and port (`SERVER_PORT` above, `8080` by default).
+
+---
+
+## Docker Deployment
+
+> **Production hosting:** the live instance of this server runs on an AWS EC2 instance with a static Elastic IP, using this same Docker Compose setup.
+
+```bash
+docker compose up --build
+```
+
+Docker automatically starts MySQL and the Hangman Server. The database is initialized using the SQL files mounted into `/docker-entrypoint-initdb.d`.
+
+```mermaid
+flowchart TD
+
+A[Docker Compose]
+
+A --> B[MySQL Container]
+
+A --> C[Hangman Server]
+
+C -->|JDBC| B
+
+D[Client]
+
+D -->|TCP 8080| C
+
+D -->|UDP Discovery| C
+
+B --> E[Docker Volume]
+
+C --> F[Logs Volume]
+```
+
+### Docker Volumes
+
+| Volume | Purpose |
+|---------|----------|
+| db_data | Persist MySQL database |
+| ./logs | Application logs |
+| ./db | Database initialization scripts |
+
+This ensures that player data remains intact even if containers are recreated.
+
+### Docker Networking
+
+Both containers run on the same Docker network. The application refers to MySQL using the service name `db` instead of an IP address.
+
+---
+
+## Communication Protocol
+
+The client and server communicate using a lightweight text-based protocol over TCP. The server sends commands, and the client responds appropriately.
+
+**Authentication Commands**
+
+```
+INPUT_USERNAME
+INPUT_PASSWORD_NEW
+INPUT_PASSWORD_AUTH
+AUTH_SUCCESS
+AUTH_FAILED
+AUTH_BLOCKED
+```
+
+**Menu Commands**
+
+```
+INPUT_MODE
+CATEGORY_SELECTION
+DIFFICULTY_SELECTION
+```
+
+**Gameplay Commands**
+
+```
+INPUT_GUESS
+HINT
+PLOTHINT
+CHAT:<message>
+ENDED
+```
+
+**Example Session**
+
+```
+Server → INPUT_USERNAME
+Client → Alice
+Server → INPUT_PASSWORD_AUTH
+Client → ********
+Server → AUTH_SUCCESS
+Server → INPUT_MODE
+Client → 2
+Server → MATCH_FOUND
+Server → INPUT_GUESS
+```
+
+The protocol is intentionally simple, making it easy to implement clients in other programming languages.
+
+---
+
+## UDP Discovery
+
+The project supports automatic server discovery on local networks, so clients don't need to manually enter the server IP.
+
+```mermaid
+sequenceDiagram
+
+participant Client
+participant DiscoveryService
+participant Server
+
+Client->>DiscoveryService: DISCOVER_SERVICE
+
+DiscoveryService->>Server: Discovery Request
+
+Server-->>DiscoveryService: TCP Port
+
+DiscoveryService-->>Client: Server Address
+```
+
+Once discovered, the client establishes a TCP connection for gameplay.
+
+> UDP broadcast discovery only works when the client and server are on the same local network. For the hosted production server (AWS EC2, static Elastic IP), clients connect directly by IP/port instead — see the [HangmanClient](https://github.com/<your-username>/HangmanClient) README.
+
+---
+
+## Error Handling
+
+The application gracefully handles common runtime issues, including invalid usernames, incorrect passwords, client disconnections, database connection failures, invalid game input, and network interruptions. Dedicated handlers ensure the server remains available even if individual clients disconnect unexpectedly.
+
+---
+
+## Performance Optimizations
+
+- HikariCP connection pooling
+- Prepared Statements
+- Thread pools
+- CompletableFuture
+- Caffeine caching
+- Lazy OMDb loading
+- Database persistence
+- Rotating log files
+
+These optimizations allow multiple games to execute concurrently while minimizing database overhead.
+
+---
+
+## Security Features
+
+- BCrypt password hashing
+- Prepared Statements to prevent SQL injection
+- Connection pooling
+- Environment-based configuration
+- Secure password verification
+- Legacy password migration
+
+Sensitive credentials are never hardcoded into the application.
+
+---
+
+## Roadmap
+
+- [ ] WebSocket client
+- [ ] JavaFX desktop client
+- [ ] React web interface
+- [ ] Spring Boot backend
+- [ ] JWT authentication
+- [ ] REST API
+- [ ] Spectator mode
+- [ ] Friend system
+- [ ] Tournament mode
+- [ ] Global rankings
+- [ ] Match replay
+- [ ] Kubernetes deployment
+- [ ] CI/CD using GitHub Actions
+
+The modular architecture allows these features to be added with minimal changes to the existing codebase.
+
+---
+
+## Contributing
+
+Contributions are welcome!
+
+1. Fork the repository.
+2. Create a feature branch:
+   ```bash
+   git checkout -b feature/new-feature
+   ```
+3. Commit your changes:
+   ```bash
+   git commit -m "Add new feature"
+   ```
+4. Push your branch:
+   ```bash
+   git push origin feature/new-feature
+   ```
+5. Open a Pull Request.
+
+---
+
+## License
+
+This project is licensed under the **MIT License**. You are free to use, modify, and distribute this software in accordance with the terms of the license.
+
+---
+
+## Acknowledgements
+
+This project was built to demonstrate advanced Java backend concepts, including:
+
+- Object-Oriented Programming
+- Java Networking (TCP/UDP)
+- Concurrent Programming
+- Database Design
+- JDBC & HikariCP
+- Docker Containerization
+- Secure Authentication
+- External API Integration
+- Caching Strategies
+- Clean Software Architecture
+
+It serves as both a multiplayer game and a comprehensive backend engineering project showcasing real-world software development practices.
+
+If you found this useful, consider ⭐ starring the repo!
