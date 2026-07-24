@@ -25,7 +25,8 @@ import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class GameTcpServer {
+public class
+GameTcpServer {
 
     private static final ExecutorService CLIENT_HANDLER_POOL =
             Executors.newFixedThreadPool(12);
