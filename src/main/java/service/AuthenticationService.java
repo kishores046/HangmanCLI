@@ -15,8 +15,8 @@ public class AuthenticationService {
     private static final DataSource DATA_SOURCE=HikariConnectionManager.getDataSource();
     private final PlayerStatsDAO dao = new PlayerStatsDAO(DATA_SOURCE);
     private static final int MAX_AUTH_ATTEMPTS = 3;
-
-
+    private static final java.util.regex.Pattern VALID_USERNAME =
+            java.util.regex.Pattern.compile("^[a-zA-Z0-9_]{3,20}$");
     private static final AuthenticationService INSTANCE = new AuthenticationService();
     public static AuthenticationService getInstance() { return INSTANCE; }
 
@@ -29,6 +29,13 @@ public class AuthenticationService {
      */
      public boolean handleAuth(WaitingPlayer waitingPlayer, String username, ClientConnection clientConnection)
             throws java.io.IOException {
+
+         if (username == null || !VALID_USERNAME.matcher(username.trim()).matches()) {
+             clientConnection.sendMessage("AUTH_BLOCKED");
+             clientConnection.sendMessage("Invalid username. Use 3-20 letters, numbers, or underscores.");
+             return false;
+         }
+         username = username.trim();
 
         if (!dao.usernameExists(username)) {
             clientConnection.sendMessage("INPUT_PASSWORD_NEW");
