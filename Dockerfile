@@ -14,6 +14,8 @@ FROM eclipse-temurin:21-jre-alpine AS prod
 
 WORKDIR /app
 
+RUN mkdir -p /app/logs
+
 COPY --from=build /app/target/classes ./target/classes
 COPY --from=build /app/target/dependency ./target/dependency
 
